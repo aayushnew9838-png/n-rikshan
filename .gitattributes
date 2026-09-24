@@ -1,0 +1,6 @@
+ml/*.parquet filter=lfs diff=lfs merge=lfs -text
+ml/*.joblib filter=lfs diff=lfs merge=lfs -text
+ml/data/processed/*.parquet filter=lfs diff=lfs merge=lfs -text
+ml/data/raw/weather/**/*.parquet filter=lfs diff=lfs merge=lfs -text
+ml/models/*.joblib filter=lfs diff=lfs merge=lfs -text
+ml/artifacts/analogs/*.joblib filter=lfs diff=lfs merge=lfs -text

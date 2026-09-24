@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NirikshanPredictionResponse",
+  "description": "Standard JSON response schema for Nirikshan ML forecast bust detection endpoints",
+  "type": "object",
+  "required": [
+    "project",
+    "loc_id",
+    "lead_day",
+    "bust_probability",
+    "confidence",
+    "risk_category",
+    "status",
+    "reasons"
+  ],
+  "properties": {
+    "project": {
+      "type": "string",
+      "enum": ["Nirikshan"]
+    },
+    "loc_id": {
+      "type": "string",
+      "description": "Location identifier"
+    },
+    "lead_day": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+    },
+    "lead_hours": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 240
+    },
+    "bust_probability": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Calibrated probability of forecast bust (0.0 to 1.0)"
+    },
+    "raw_probability": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 100.0,
+      "description": "Forecast reliability confidence score: 100 * (1 - bust_prob)"
+    },
+    "risk_category": {
+      "type": "string",
+      "enum": [
+        "HIGH_CONFIDENCE",
+        "MODERATE_CONFIDENCE",
+        "LOW_CONFIDENCE",
+        "VERY_LOW_CONFIDENCE_HIGH_RISK"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["SUCCESS", "data_unavailable_for_training", "ERROR"]
+    },
+    "reasons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Top meteorological reasons and model risk drivers"
+    },
+    "stabilizers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Key factors supporting forecast confidence"
+    },
+    "variable_bust_probabilities": {
+      "type": "object",
+      "properties": {
+        "temperature_2m": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "precipitation": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "wind_speed_10m": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "relative_humidity_2m": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+      }
+    },
+    "historical_analogs": {
+      "type": "object",
+      "properties": {
+        "n_analogs": { "type": "integer" },
+        "historical_bust_rate": { "type": "number" },
+        "summary_statement": { "type": "string" },
+        "similar_cases": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}
