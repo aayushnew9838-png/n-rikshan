@@ -3,7 +3,6 @@ import { VARIABLES } from '../../types';
 import { cn } from '../../utils/cn';
 import { num } from '../../utils/format';
 import { Badge, SegmentedControl, InfoTip } from '../ui/primitives';
-import { DEMO_MULTI_MODEL_LEAD_DAY, DEMO_MULTI_MODEL_LOC } from '../../data/demo/multiModel';
 
 const MODEL_COLORS: Record<string, string> = {
   GFS: '#1c6fb2',
@@ -34,10 +33,9 @@ export function MultiModelAgreementPanel({
           <Badge tone="neutral">Not available</Badge>
         </div>
         <div className="rounded-lg border border-dashed border-ice-300 bg-ice-25 px-5 py-8 text-center">
-          <p className="text-sm font-semibold text-navy-900">Multi-model values are not exposed by the running backend.</p>
+          <p className="text-sm font-semibold text-navy-900">Per-model values are not published for this view.</p>
           <p className="mx-auto mt-1.5 max-w-lg text-xs leading-relaxed text-slate-500">
-            {unavailableReason ??
-              'Per-centre forecast values are consumed as model input features; the current API does not return them. This page will populate as soon as `/predict` includes its `multi_model` block.'}
+            {unavailableReason ?? 'Multi-model spread is unavailable until the service exposes per-model forecasts.'}
           </p>
         </div>
       </section>
@@ -60,11 +58,7 @@ export function MultiModelAgreementPanel({
             Forecast model agreement
             <InfoTip text="Disagreement between forecast centres. These are forecast models — not ensemble members." />
           </h3>
-          <p className="mt-0.5 text-[11px] text-slate-500">
-            {agreement.source === 'demo'
-              ? `Real values from ml/artifacts/demo_prediction.json · ${DEMO_MULTI_MODEL_LOC} · Day ${DEMO_MULTI_MODEL_LEAD_DAY}`
-              : 'Multi-model spread features consumed by the bust detector'}
-          </p>
+          <p className="mt-0.5 text-[11px] text-slate-500">Multi-model spread features consumed by the bust detector</p>
         </div>
         <div className="flex items-center gap-2">
           {onVariableChange && (
@@ -76,9 +70,6 @@ export function MultiModelAgreementPanel({
               options={VARIABLES.map((v) => ({ value: v.key, label: v.label.split(' ')[0] }))}
             />
           )}
-          <Badge tone={agreement.source === 'demo' ? 'demo' : 'blue'}>
-            {agreement.source === 'demo' ? 'Demo data' : 'Live'}
-          </Badge>
         </div>
       </div>
 

@@ -3,9 +3,9 @@ import { PageHeader, AsyncSection } from '../components/layout/PageHeader';
 import { ForecastControls } from '../components/forecast/ForecastControls';
 import { RiskRanking } from '../components/intelligence/RiskRanking';
 import { RegionDrawer } from '../components/intelligence/RegionDrawer';
-import { BackendBanner, ChartSkeleton, SkeletonPanel } from '../components/ui/states';
+import { StatusBanner, ChartSkeleton, SkeletonPanel } from '../components/ui/states';
 import { Stat, InfoTip, ProbabilityBar, SectionTitle, Badge } from '../components/ui/primitives';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useAppStore } from '../store/useAppStore';
 import { riskColor, riskLabel, confidenceLabel, confidenceColor } from '../utils/risk';
 import { cn } from '../utils/cn';
@@ -18,8 +18,8 @@ const THRESHOLDS = [
 ];
 
 export default function BustProbabilityPage() {
-  const { leadDay, isDemo, dayWise, map, risk } = useForecastData();
-  const { enableDemo, retry } = useShell();
+  const { leadDay, dayWise, map, risk } = useForecastData();
+  const { retry } = useShell();
   const { selectRegion, selectedRegionId, setLeadDay, setMapLayer, setRiskThreshold } = useAppStore();
   const [minBust, setMinBust] = useState(0);
 
@@ -79,17 +79,10 @@ export default function BustProbabilityPage() {
         eyebrow="Operations"
         title="Forecast Bust Probability"
         description="Calibrated probability that the forecast will realise a large error at each location and lead day."
-        source={isDemo ? 'demo' : 'live'}
         controls={<ForecastControls showThresholds />}
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" onRetry={retry} />
 
       <div className="mb-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)]">
         <section className="panel p-4">

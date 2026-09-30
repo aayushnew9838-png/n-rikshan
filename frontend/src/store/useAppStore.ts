@@ -1,18 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Alert, MapLayer, RegionInfo, VariableKey } from '../types';
-import { DEMO_DISABLED, DEMO_FORCED } from '../services/api';
 
-export type DataMode = 'auto' | 'live' | 'demo';
 export type BackendState = 'unknown' | 'probing' | 'online' | 'offline';
 
 interface AppState {
-  /* ---- runtime data mode ------------------------------------------------ */
-  mode: DataMode;
-  backendState: BackendState;
-  setMode: (mode: DataMode) => void;
-  setBackendState: (s: BackendState) => void;
-
+  /* ---- service availability -------------------------------------------- */  backendState: BackendState;  setBackendState: (s: BackendState) => void;
   /* ---- forecast selection ---------------------------------------------- */
   leadDay: number;
   variable: VariableKey;
@@ -61,9 +54,7 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      mode: DEMO_FORCED ? 'demo' : DEMO_DISABLED ? 'live' : 'auto',
       backendState: 'unknown',
-      setMode: (mode) => set({ mode }),
       setBackendState: (backendState) => set({ backendState }),
 
       leadDay: 5,
@@ -112,7 +103,6 @@ export const useAppStore = create<AppState>()(
     {
       name: 'nirikshan-ui',
       partialize: (s) => ({
-        mode: s.mode,
         leadDay: s.leadDay,
         variable: s.variable,
         mapLayer: s.mapLayer,
@@ -126,9 +116,3 @@ export const useAppStore = create<AppState>()(
   ),
 );
 
-/** True when the UI should render demo-sourced values. */
-export function isDemoMode(state: Pick<AppState, 'mode' | 'backendState'>): boolean {
-  if (state.mode === 'demo') return true;
-  if (state.mode === 'live') return false;
-  return state.backendState === 'offline';
-}

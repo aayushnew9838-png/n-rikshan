@@ -1,14 +1,12 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
-import { DataSourceBadge, EmptyState, ErrorState } from '../ui/states';
-import type { DataSource } from '../../types';
+import { EmptyState, ErrorState } from '../ui/states';
 
 export function PageHeader({
   eyebrow,
   title,
   description,
   controls,
-  source,
   actions,
   className,
 }: {
@@ -16,7 +14,6 @@ export function PageHeader({
   title: string;
   description?: string;
   controls?: React.ReactNode;
-  source?: DataSource | 'unknown';
   actions?: React.ReactNode;
   className?: string;
 }) {
@@ -24,10 +21,7 @@ export function PageHeader({
     <div className={cn('mb-5', className)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2.5">
-            {eyebrow && <span className="eyebrow">{eyebrow}</span>}
-            {source && <DataSourceBadge source={source === 'unknown' ? 'unknown' : source} />}
-          </div>
+          {eyebrow && <span className="eyebrow">{eyebrow}</span>}
           <h1 className="mt-1.5 text-[22px] font-bold leading-tight tracking-tight text-navy-900 sm:text-2xl">
             {title}
           </h1>
@@ -47,8 +41,6 @@ export function AsyncSection<T>({
   isEmpty,
   emptyTitle,
   emptyDescription,
-  onEnableDemo,
-  showUnavailableAction,
   className,
 }: {
   state: { data: T | null; loading: boolean; error: Error | null; unavailable: boolean; reload: () => void };
@@ -57,8 +49,6 @@ export function AsyncSection<T>({
   isEmpty?: (data: T) => boolean;
   emptyTitle?: string;
   emptyDescription?: string;
-  onEnableDemo?: () => void;
-  showUnavailableAction?: boolean;
   className?: string;
 }) {
   if (state.loading && !state.data) return <div className={className}>{skeleton}</div>;
@@ -68,17 +58,9 @@ export function AsyncSection<T>({
       return (
         <div className={className}>
           <ErrorState
+            title="Forecast intelligence unavailable"
+            description="The analysis service could not be reached for this view."
             onRetry={state.reload}
-            extraAction={
-              showUnavailableAction && onEnableDemo ? (
-                <button
-                  onClick={onEnableDemo}
-                  className="rounded-lg border border-ice-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-800 shadow-soft transition hover:border-blue-300 hover:bg-ice-50"
-                >
-                  View cached demo analysis
-                </button>
-              ) : undefined
-            }
           />
         </div>
       );

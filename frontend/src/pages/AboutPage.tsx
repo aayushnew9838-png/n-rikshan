@@ -1,9 +1,9 @@
 import { PageHeader } from '../components/layout/PageHeader';
 import { Panel, SectionTitle, Badge, Button, Stat, InfoTip } from '../components/ui/primitives';
-import { BackendBanner } from '../components/ui/states';
-import { useShell, useIsDemo } from '../hooks/useForecastData';
+import { StatusBanner } from '../components/ui/states';
+import { useShell } from '../hooks/useForecastData';
 import { useNavigate } from 'react-router-dom';
-import { TEMPORAL_TEST, DATASET_FACTS, EVAL_GENERATED_AT } from '../data/demo/evalReport';
+import { TEMPORAL_TEST, DATASET_FACTS, EVAL_GENERATED_AT } from '../data/evaluation';
 import { num, pct } from '../utils/format';
 import { IconBook, IconTarget, IconShield, IconBulb, IconGlobe, IconArrowRight, IconWaves, IconInfo } from '../components/ui/icons';
 
@@ -44,20 +44,19 @@ const LIMITS = [
   'Nirikshan does not issue a weather forecast - it scores forecasts produced by numerical models.',
   'Skill claims apply to the evaluated regions and the temporal test split, not to arbitrary locations or dates.',
   'Confidence below 40% should be treated as "do not rely on this run" rather than a pessimistic forecast.',
-  'Demo data is clearly badged and is never silently mixed into a live session.',
+  'When the analysis service cannot be reached, affected views show a neutral unavailable state with a retry action rather than substitute values.',
   'No accuracy figure in this interface is hand-authored; each one is computed or transcribed from a published report.',
 ];
 
 const ROLES = [
   { role: 'ML & calibration', detail: 'Feature pipeline, gradient-boosted bust model, isotonic calibration, evaluation harness.' },
-  { role: 'Backend & data', detail: 'FastAPI service, forecast and history endpoints, reference catalogue, alert derivation.' },
+  { role: 'Backend & data', detail: 'Analysis service, forecast and verification history, reference catalogue, alert derivation.' },
   { role: 'Frontend & design', detail: 'Forecast-reliability interface, map-first layout, explainability and verification modules.' },
   { role: 'Validation & write-up', detail: 'Case studies, analogue construction, problem framing and documentation.' },
 ];
 
 export default function AboutPage() {
-  const isDemo = useIsDemo();
-  const { enableDemo, retry, backendState } = useShell();
+  const { retry, backendState } = useShell();
   const navigate = useNavigate();
 
   return (
@@ -66,7 +65,6 @@ export default function AboutPage() {
         eyebrow="About"
         title="Nirikshan"
         description="AI-based forecast bust detection for medium-range weather forecasts. A reliability layer that tells you how much of the forecast to believe, and why."
-        source={isDemo ? 'demo' : 'live'}
         actions={
           <>
             <Button variant="primary" onClick={() => navigate('/dashboard')}>
@@ -79,13 +77,7 @@ export default function AboutPage() {
         }
       />
 
-      <div className="mb-5">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} />
-        )}
-      </div>
+      <StatusBanner className="mb-5" onRetry={retry} />
 
       <section className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Panel className="p-5">
@@ -124,20 +116,16 @@ export default function AboutPage() {
               <Stat label="Brier score" value={num(TEMPORAL_TEST.brier_score, 3)} />
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-              Temporal test split, {TEMPORAL_TEST.n_samples.toLocaleString()} samples, positive rate{' '}
-              {pct(TEMPORAL_TEST.pos_rate, 2)}. Report dated {EVAL_GENERATED_AT.slice(0, 10)}.
+              Held-out evaluation on the temporal test split, {TEMPORAL_TEST.n_samples.toLocaleString()} samples,
+              positive rate {pct(TEMPORAL_TEST.pos_rate, 2)}. Report dated {EVAL_GENERATED_AT.slice(0, 10)}.
             </p>
           </Panel>
 
           <Panel className="p-4">
-            <div className="eyebrow mb-2">Backend</div>
+            <div className="eyebrow mb-2">Analysis service</div>
             <div className="flex items-center justify-between text-[12px]">
               <span className="text-slate-500">Probe state</span>
-              <Badge tone={backendState === 'online' ? 'live' : 'neutral'}>{backendState}</Badge>
-            </div>
-            <div className="mt-1.5 flex items-center justify-between text-[12px]">
-              <span className="text-slate-500">Data source</span>
-              <Badge tone={isDemo ? 'demo' : 'live'}>{isDemo ? 'demo dataset' : 'live backend'}</Badge>
+              <Badge tone={backendState === 'online' ? 'blue' : 'neutral'}>{backendState}</Badge>
             </div>
             <div className="mt-3 flex gap-2">
               <Button variant="ghost" onClick={() => navigate('/system')}>
@@ -246,15 +234,15 @@ export default function AboutPage() {
               },
               {
                 q: 'Why are some panels empty?',
-                a: 'Because the backend returned no data. Empty states are shown honestly rather than being filled with invented rows.',
+                a: 'Because the analysis service returned no data for this view. Empty states are shown honestly rather than being filled with invented rows.',
               },
               {
-                q: 'How do I force live or demo data?',
-                a: 'Use the data-mode control in System > API & modes, or set VITE_DEMO_MODE in the environment. Demo is always badged.',
+                q: 'How does the interface reach its data?',
+                a: 'The client probes the analysis service once, remembers the resolved route, and requests every view from it. Values are never invented on the client.',
               },
               {
-                q: 'Does it work without the backend?',
-                a: 'Partially. The interface loads with a documented demo dataset and shows a persistent demo banner so nothing is mistaken for a live run.',
+                q: 'What happens when the analysis service cannot be reached?',
+                a: 'Affected views show a neutral "Forecast intelligence unavailable" state with a retry action, and the request is repeated once the service responds again.',
               },
             ].map((f) => (
               <details key={f.q} className="group rounded-lg border border-ice-200 bg-white px-4 py-3">
@@ -291,9 +279,8 @@ export default function AboutPage() {
               <IconInfo width={14} height={14} /> Documented contract
             </div>
             <p className="text-[12px] leading-relaxed text-slate-600">
-              The frontend consumes the documented backend contract and records every endpoint, normalisation rule and
-              demo fallback in <code className="data-value">docs/frontend-api-contract.md</code> so the client and
-              services can be audited together.
+              The client and the analysis service share a documented contract covering every route, normalisation rule
+              and response shape, so both sides can be audited together.
             </p>
           </Panel>
         </div>

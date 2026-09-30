@@ -1,24 +1,17 @@
-﻿import { useEffect, useState } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Suspense, useEffect, useState } from 'react';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { PageSkeleton } from '../components/ui/states';
 import { cn } from '../utils/cn';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { useAppStore } from '../store/useAppStore';
 import type { BackendState } from '../store/useAppStore';
-import {
-  DEMO_DISABLED,
-  DEMO_FORCED,
-  currentPrefix,
-  getHealth,
-  getRegions,
-  resetProbe,
-} from '../services/api';
-import { DEMO_REGIONS } from '../data/demo/regions';
+import { currentPrefix, getHealth, getRegions, resetProbe } from '../services/api';
 
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { mode, setMode, backendState, setBackendState, setRegions, leadDay } = useAppStore();
+  const { backendState, setBackendState, setRegions } = useAppStore();
   const [navOpen, setNavOpen] = useState(false);
   const collapsed = useAppStore((s) => s.navCollapsed);
   const setCollapsed = useAppStore((s) => s.setNavCollapsed);
@@ -42,33 +35,17 @@ export function AppShell() {
   /* Region catalogue for drawers / watchlists --------------------------- */
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      const state = useAppStore.getState();
-      const demoMode = state.mode === 'demo' || (state.mode === 'auto' && state.backendState === 'offline') || DEMO_FORCED;
-      if (demoMode) {
-        setRegions(
-          DEMO_REGIONS.map((r) => ({
-            region_id: r.region_id,
-            name: r.name,
-            lat: r.lat,
-            lon: r.lon,
-            admin1: r.admin1,
-          })),
-        );
-        return;
-      }
-      try {
-        const regions = await getRegions();
+    getRegions()
+      .then((regions) => {
         if (!cancelled) setRegions(regions);
-      } catch {
+      })
+      .catch(() => {
         /* drawer falls back to the region id */
-      }
-    };
-    load();
+      });
     return () => {
       cancelled = true;
     };
-  }, [setRegions, mode, backendState]);
+  }, [setRegions, backendState]);
 
   /* Keyboard shortcuts --------------------------------------------------- */
   useEffect(() => {
@@ -90,16 +67,8 @@ export function AppShell() {
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [location.pathname]);
 
-  const effectiveMode: 'live' | 'demo' =
-    mode === 'demo' || (mode === 'auto' && backendState === 'offline') ? 'demo' : 'live';
-
-  const enableDemo = () => {
-    resetProbe();
-    setMode('demo');
-  };
   const retry = () => {
     resetProbe();
-    setMode(DEMO_FORCED ? 'demo' : DEMO_DISABLED ? 'live' : 'auto');
     setBackendState('probing');
     getHealth()
       .then(() => setBackendState('online'))
@@ -107,6 +76,7 @@ export function AppShell() {
   };
 
   const prefix = currentPrefix();
+  const leadDay = useAppStore((s) => s.leadDay);
 
 
   return (
@@ -142,7 +112,34 @@ export function AppShell() {
         <Topbar onToggleNav={() => setNavOpen((v) => !v)} onToggleCollapse={() => setCollapsed(!collapsed)} navOpen={navOpen} />
         <main className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 sm:py-5">
-            <Outlet context={{ effectiveMode, enableDemo, retry, leadDay, backendState, prefix }} />
+            <div key={location.pathname} className="nrk-page">
+              <Suspense fallback={<PageSkeleton />}>
+                <Outlet context={{ retry, leadDay, backendState, prefix }} />
+              </Suspense>
+            </div>
+
+            <footer className="mt-8 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-ice-200 pt-4 pb-1 text-[11px] text-slate-400">
+              <span className="font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Nirikshan · Forecast Reliability Intelligence
+              </span>
+              <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-5 gap-y-1">
+                <Link className="transition-colors hover:text-blue-600" to="/how-it-works">
+                  Methodology
+                </Link>
+                <Link className="transition-colors hover:text-blue-600" to="/verification">
+                  Verification
+                </Link>
+                <Link className="transition-colors hover:text-blue-600" to="/system">
+                  Model information
+                </Link>
+                <Link className="transition-colors hover:text-blue-600" to="/about">
+                  Documentation
+                </Link>
+                <Link className="transition-colors hover:text-blue-600" to="/system">
+                  System status
+                </Link>
+              </nav>
+            </footer>
           </div>
         </main>
       </div>
@@ -151,8 +148,6 @@ export function AppShell() {
 }
 
 export interface ShellContext {
-  effectiveMode: 'live' | 'demo';
-  enableDemo: () => void;
   retry: () => void;
   leadDay: number;
   backendState: BackendState;

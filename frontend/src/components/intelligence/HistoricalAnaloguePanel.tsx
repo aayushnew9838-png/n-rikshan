@@ -1,17 +1,15 @@
 import type { HistoricalAnalogs, HistoricalCase } from '../../types';
 import { formatUtc, pct } from '../../utils/format';
-import { Badge, ProbabilityBar } from '../ui/primitives';
+import { ProbabilityBar } from '../ui/primitives';
 import { IconHistory } from '../ui/icons';
 
 export function HistoricalAnaloguePanel({
   analogs,
   history,
-  source,
   compact = false,
 }: {
   analogs?: HistoricalAnalogs;
   history?: HistoricalCase[];
-  source: 'live' | 'demo';
   compact?: boolean;
 }) {
   const cases =
@@ -42,7 +40,6 @@ export function HistoricalAnaloguePanel({
           <IconHistory width={16} height={16} className="text-blue-500" />
           Similar historical situations
         </h3>
-        <Badge tone={source === 'demo' ? 'demo' : 'blue'}>{source === 'demo' ? 'Demo dataset' : 'Analogue engine'}</Badge>
       </div>
 
       {rate !== undefined && (

@@ -1,21 +1,11 @@
 import { useState } from 'react';
 import { PageHeader, AsyncSection } from '../components/layout/PageHeader';
-import { BackendBanner, SkeletonPanel, TableSkeleton } from '../components/ui/states';
+import { StatusBanner, SkeletonPanel, TableSkeleton } from '../components/ui/states';
 import { Badge, Button, Panel, SectionTitle, Stat, InfoTip, SegmentedControl, Select } from '../components/ui/primitives';
-import { useShell, useIsDemo } from '../hooks/useForecastData';
+import { useShell } from '../hooks/useForecastData';
 import { useAsync } from '../hooks/useAsync';
 import { useAppStore } from '../store/useAppStore';
-import {
-  API_BASE,
-  DEMO_DISABLED,
-  DEMO_FORCED,
-  demoHealth,
-  demoModelInfo,
-  demoMultiModelFor,
-  getEvaluationReport,
-  getModelInfo,
-  getMultiModel,
-} from '../services/api';
+import { getEvaluationReport, getModelInfo, getMultiModel } from '../services/api';
 import {
   TEMPORAL_TEST,
   LEAD_DAY_STATS,
@@ -26,28 +16,22 @@ import {
   MODEL_COMPARISON,
   VARIABLE_STATS,
   EVAL_GENERATED_AT,
-} from '../data/demo/evalReport';
+} from '../data/evaluation';
 import { VARIABLES } from '../types';
 import { num, pct } from '../utils/format';
 import { humanizeFeature } from '../utils/format';
 import { IconCpu, IconShield, IconRefresh, IconInfo, IconActivity } from '../components/ui/icons';
 
-type Tab = 'model' | 'evaluation' | 'dataset' | 'api';
+type Tab = 'model' | 'evaluation' | 'dataset' | 'service';
 
 export default function SystemPage() {
-  const isDemo = useIsDemo();
-  const { enableDemo, retry, backendState, prefix } = useShell();
-  const { mode, setMode, variable, setVariable, leadDay } = useAppStore();
+  const { retry, backendState, prefix } = useShell();
+  const { variable, setVariable, leadDay, regions } = useAppStore();
   const [tab, setTab] = useState<Tab>('model');
 
-  const useLive = !isDemo && !DEMO_FORCED;
-
-  const model = useAsync(async () => (useLive ? getModelInfo() : Promise.resolve(demoModelInfo())), [useLive]);
-  const report = useAsync(async () => (useLive ? getEvaluationReport() : Promise.resolve(null)), [useLive]);
-  const multi = useAsync(async () => (useLive ? getMultiModel() : Promise.resolve(demoMultiModelFor(variable))), [
-    variable,
-    useLive,
-  ]);
+  const model = useAsync(async () => getModelInfo(), []);
+  const report = useAsync(async () => getEvaluationReport(), []);
+  const multi = useAsync(async () => getMultiModel(), [variable]);
 
   const evalReport = report.data ?? null;
   const leadRows = evalReport?.lead_day_breakdown?.length ? evalReport.lead_day_breakdown : LEAD_DAY_STATS;
@@ -56,7 +40,7 @@ export default function SystemPage() {
     { value: 'model', label: 'Model card' },
     { value: 'evaluation', label: 'Evaluation' },
     { value: 'dataset', label: 'Dataset' },
-    { value: 'api', label: 'API & modes' },
+    { value: 'service', label: 'Service' },
   ];
 
   return (
@@ -64,8 +48,7 @@ export default function SystemPage() {
       <PageHeader
         eyebrow="System"
         title="Model & System"
-        description="What model is running, how well it scored on the held-out split, what it was trained on, and how this client talks to the backend."
-        source={isDemo ? 'demo' : 'live'}
+        description="Which model is running, how it scored on the held-out split, what it was trained on, and how this interface reaches the analysis service."
         actions={
           <Button variant="secondary" onClick={() => { model.reload(); report.reload(); multi.reload(); }}>
             <IconRefresh width={15} height={15} /> Refresh
@@ -85,17 +68,11 @@ export default function SystemPage() {
         }
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" onRetry={retry} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Backend" value={backendState} tone={backendState === 'online' ? 'calm' : 'risk'} />
-        <Stat label="Data mode" value={mode} sub={DEMO_FORCED ? 'forced by VITE_DEMO_MODE' : DEMO_DISABLED ? 'demo disabled by env' : 'auto'} />
+        <Stat label="Analysis service" value={backendState} tone={backendState === 'online' ? 'calm' : 'risk'} />
+        <Stat label="Model version" value={model.data?.model_version ?? '—'} sub={model.data?.model_name} />
         <Stat label="Active lead day" value={leadDay} />
         <Stat label="ROC AUC (held-out)" value={num(TEMPORAL_TEST.roc_auc, 3)} tone="calm" />
       </div>
@@ -108,11 +85,9 @@ export default function SystemPage() {
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="eyebrow flex items-center gap-1.5">
                     <IconCpu width={14} height={14} /> Model card
-                    <InfoTip text="Fields are surfaced verbatim from the backend's /model-info response." />
+                    <InfoTip text="Fields are reported verbatim by the analysis service." />
                   </div>
-                  <Badge tone={data.source === 'demo' ? 'demo' : 'live'}>
-                    {data.source === 'demo' ? 'Demo card' : 'Live card'}
-                  </Badge>
+                  <Badge tone="blue">Active deployment</Badge>
                 </div>
                 <dl className="grid gap-x-6 gap-y-2.5 text-[13px] sm:grid-cols-2">
                   {[
@@ -216,7 +191,7 @@ export default function SystemPage() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="eyebrow">Lead-day breakdown</div>
               <span className="text-[11px] text-slate-400">
-                {evalReport ? 'from backend /reports/evaluation-summary' : `transcribed - report dated ${EVAL_GENERATED_AT.slice(0, 10)}`}
+                {evalReport ? 'from the evaluation service' : `evaluation report dated ${EVAL_GENERATED_AT.slice(0, 10)}`}
               </span>
             </div>
             <div className="no-scrollbar overflow-x-auto">
@@ -365,7 +340,7 @@ export default function SystemPage() {
         </div>
       )}
 
-      {tab === 'api' && (
+      {tab === 'service' && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
           <Panel className="p-5">
             <div className="eyebrow mb-3 flex items-center gap-1.5">
@@ -373,14 +348,11 @@ export default function SystemPage() {
             </div>
             <dl className="space-y-2.5 text-[13px]">
               {[
-                ['Base URL', API_BASE],
-                ['Resolved prefix', prefix || '(none - ML service style)'],
-                ['Probe state', backendState],
-                ['Selected mode', mode],
-                ['Env override', DEMO_FORCED ? 'VITE_DEMO_MODE=true (demo forced)' : DEMO_DISABLED ? 'VITE_DEMO_MODE=false (live forced)' : 'unset - automatic'],
-                ['Effective data source', isDemo ? 'demo dataset' : 'live backend'],
-                ['Health status', isDemo ? demoHealth().status : 'see banner'],
-                ['Model loaded', isDemo ? String(demoHealth().model_loaded) : 'see banner'],
+                ['Connection state', backendState],
+                ['Resolved route', prefix || '/'],
+                ['Region catalogue', regions.length ? `${regions.length} regions` : '—'],
+                ['Model version', model.data?.model_version ?? '—'],
+                ['Report date', EVAL_GENERATED_AT.slice(0, 10)],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-4 border-b border-ice-50 pb-1.5">
                   <dt className="text-slate-500">{k}</dt>
@@ -389,29 +361,16 @@ export default function SystemPage() {
               ))}
             </dl>
 
-            <div className="mt-4">
-              <div className="eyebrow mb-2">Force data mode</div>
-              <SegmentedControl
-                ariaLabel="Data mode"
-                options={[
-                  { value: 'auto', label: 'Auto (live if reachable)' },
-                  { value: 'live', label: 'Force live' },
-                  { value: 'demo', label: 'Force demo' },
-                ]}
-                value={mode}
-                onChange={setMode}
-              />
-              <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                Auto mode probes <code className="data-value">{API_BASE}</code> at start-up, remembers the resolved
-                prefix, and only falls back to demo data when the backend cannot be reached. The fallback is always
-                labelled.
-              </p>
-            </div>
+            <p className="mt-4 text-[11px] leading-relaxed text-slate-500">
+              The interface probes the analysis service once at start-up and remembers the resolved route. When the
+              service cannot be reached, each view renders a neutral unavailable state with a retry action — no value
+              is ever substituted client-side.
+            </p>
           </Panel>
 
           <div className="space-y-4">
             <Panel className="p-4">
-              <SectionTitle eyebrow="Endpoints used" title="Client surface" />
+              <SectionTitle eyebrow="Service routes" title="Requests issued" />
               <ul className="mt-3 space-y-1.5 text-[12px] text-slate-600">
                 {[
                   'GET  /health',
@@ -419,8 +378,8 @@ export default function SystemPage() {
                   'GET  /forecast/summary?days=',
                   'POST /predict',
                   'GET  /history/{region_id}',
-                  'GET  /model-info        (ML service)',
-                  'GET  /case-study/{id}   (ML service)',
+                  'GET  /model-info        (optional)',
+                  'GET  /case-study/{id}   (optional)',
                 ].map((e) => (
                   <li key={e} className="data-value rounded-md bg-ice-50 px-2.5 py-1.5">
                     {e}
@@ -428,9 +387,9 @@ export default function SystemPage() {
                 ))}
               </ul>
               <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-                Confidence displayed anywhere in this UI is always recomputed as{' '}
-                <span className="data-value font-semibold">100 x (1 - bust_probability)</span> so it matches the
-                documented definition rather than an undocumented backend field.
+                Confidence shown anywhere in this interface is recomputed as{' '}
+                <span className="data-value font-semibold">100 x (1 - bust probability)</span> so that it matches the
+                documented definition.
               </p>
             </Panel>
 
@@ -439,10 +398,10 @@ export default function SystemPage() {
               <div className="grid grid-cols-2 gap-2 text-[12px]">
                 {[
                   ['[ / ]', 'Previous / next lead day'],
-                  ['M', 'Toggle map layer'],
-                  ['G then D', 'Go to dashboard'],
-                  ['G then M', 'Go to map'],
-                  ['Esc', 'Close drawer'],
+                  ['M', 'Open the confidence map'],
+                  ['D', 'Open the dashboard'],
+                  ['Shift + ?', 'Open how it works'],
+                  ['Esc', 'Close the region panel'],
                 ].map(([k, v]) => (
                   <div key={k} className="flex items-center gap-2">
                     <kbd className="data-value rounded border border-ice-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-navy-800">

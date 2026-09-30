@@ -4,7 +4,7 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { Panel, SectionTitle, Badge, Button, InfoTip } from '../components/ui/primitives';
 import { ConfidenceStrip } from '../components/forecast/ConfidenceStrip';
 import { pct, humanizeFeature } from '../utils/format';
-import { FEATURE_IMPORTANCE, TEMPORAL_TEST, NATIONAL_POS_RATE } from '../data/demo/evalReport';
+import { FEATURE_IMPORTANCE, TEMPORAL_TEST, NATIONAL_POS_RATE } from '../data/evaluation';
 import type { ReliabilityCell } from '../types';
 import { num } from '../utils/format';
 import {
@@ -83,8 +83,8 @@ const FAQ = [
     a: 'Because it is one of the strongest drivers in the model. Surfacing it lets a forecaster sanity-check the call against their own reading of the ensemble.',
   },
   {
-    q: 'What happens when the backend is down?',
-    a: 'The client probes the base URL, remembers the resolved prefix, and falls back to a documented demo dataset with a persistent banner. Live and demo values are never mixed inside one response.',
+    q: 'What happens when the analysis service cannot be reached?',
+    a: 'The client probes the service once, remembers the resolved route, and requests every view from it. When it cannot be reached, affected views show a neutral unavailable state with a retry action; no values are ever invented on the client.',
   },
 ];
 
@@ -112,7 +112,6 @@ export default function HowItWorksPage() {
         eyebrow="Method"
         title="How It Works"
         description="The pipeline, the definitions and the honest limits - written so a reviewer can audit every number on screen."
-        source="demo"
         actions={
           <Button variant="primary" onClick={() => navigate('/dashboard')}>
             See it running <IconArrowRight width={15} height={15} />
@@ -184,7 +183,7 @@ export default function HowItWorksPage() {
           </div>
 
           <div className="mt-4 rounded-lg bg-ice-50 p-3 text-[12px] leading-relaxed text-slate-600">
-            The backend also reports its own confidence field based on a distance metric. This client deliberately
+            The service also reports its own confidence field based on a distance metric. This interface deliberately
             ignores it and recomputes confidence from the calibrated probability so the two definitions can never drift
             apart silently.
           </div>
@@ -195,8 +194,8 @@ export default function HowItWorksPage() {
             <div className="eyebrow mb-3">Worked lead-day profile</div>
             <ConfidenceStrip cells={exampleCells()} selectedDay={5} />
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
-              Illustrative decay used only to demonstrate the strip component. Live panels always show values fetched
-              from the backend or from the documented demo dataset.
+              Illustrative decay used only to demonstrate the strip component. Every operational view shows values
+              fetched from the analysis service; nothing is substituted client-side.
             </p>
             {!showLabels && (
               <Button variant="ghost" className="mt-2 !px-0" onClick={() => setShowLabels(true)}>
@@ -277,7 +276,6 @@ export default function HowItWorksPage() {
             <Badge tone="low">Calibrated</Badge>
             <Badge tone="blue">Temporally split</Badge>
             <Badge tone="neutral">Per-prediction explainable</Badge>
-            <Badge tone="demo">Demo badged</Badge>
           </div>
         </Panel>
       </section>

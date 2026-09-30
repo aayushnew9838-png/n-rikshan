@@ -4,13 +4,7 @@ import type { RegionInfo } from '../../types';
 import { VARIABLES } from '../../types';
 import { useAppStore } from '../../store/useAppStore';
 import { useAsync } from '../../hooks/useAsync';
-import {
-  DEMO_FORCED,
-  demoHistory,
-  demoRegionDetails,
-  getHistoricalAnalogues,
-  getRegionDetails,
-} from '../../services/api';
+import { getHistoricalAnalogues, getRegionDetails } from '../../services/api';
 import { ConfidenceRing, Badge, Button, InfoTip } from '../ui/primitives';
 import { DrawerSkeleton, EmptyState, ErrorState } from '../ui/states';
 import { ExplainabilityPanel } from '../intelligence/ExplainabilityPanel';
@@ -30,31 +24,26 @@ export function RegionDrawer() {
     regions,
     watchlist,
     toggleWatchlist,
-    mode,
-    backendState,
     acknowledgeAlert,
   } = useAppStore();
 
   const open = Boolean(selectedRegionId);
-  const isDemo = mode === 'demo' || (mode === 'auto' && backendState === 'offline') || DEMO_FORCED;
   const region: RegionInfo | undefined = regions.find((r) => r.region_id === selectedRegionId);
 
   const analysis = useAsync(
     async () => {
       if (!selectedRegionId) return null;
-      return isDemo
-        ? demoRegionDetails(selectedRegionId, leadDay)
-        : getRegionDetails(selectedRegionId, leadDay);
+      return getRegionDetails(selectedRegionId, leadDay);
     },
-    [selectedRegionId, leadDay, isDemo],
+    [selectedRegionId, leadDay],
   );
 
   const history = useAsync(
     async () => {
       if (!selectedRegionId) return [];
-      return isDemo ? demoHistory(selectedRegionId, 12) : getHistoricalAnalogues(selectedRegionId, 12);
+      return getHistoricalAnalogues(selectedRegionId, 12);
     },
-    [selectedRegionId, isDemo],
+    [selectedRegionId],
   );
 
   useEffect(() => {
@@ -230,8 +219,7 @@ export function RegionDrawer() {
                 <h3 className="mb-2.5 flex items-center gap-2 text-sm font-bold text-navy-900">
                   <IconBulb width={16} height={16} className="text-blue-500" />
                   Why?
-                  <Badge tone={isDemo ? 'demo' : 'blue'}>{isDemo ? 'Demo' : 'Model'}</Badge>
-                  <InfoTip text="Top SHAP feature contributions returned by the backend for this exact prediction." />
+                  <InfoTip text="Top SHAP feature contributions for this exact prediction." />
                 </h3>
                 <ol className="space-y-2">
                   {analysis.data.plain_reasons.length ? (

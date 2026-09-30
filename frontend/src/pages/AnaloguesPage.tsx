@@ -3,18 +3,12 @@ import { PageHeader, AsyncSection } from '../components/layout/PageHeader';
 import { ForecastControls } from '../components/forecast/ForecastControls';
 import { HistoricalAnaloguePanel } from '../components/intelligence/HistoricalAnaloguePanel';
 import { RegionDrawer } from '../components/intelligence/RegionDrawer';
-import { BackendBanner, TableSkeleton, SkeletonPanel } from '../components/ui/states';
+import { StatusBanner, TableSkeleton, SkeletonPanel } from '../components/ui/states';
 import { Badge, Button, Stat, Select, InfoTip, Panel, SectionTitle } from '../components/ui/primitives';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useAsync } from '../hooks/useAsync';
 import { useAppStore } from '../store/useAppStore';
-import {
-  DEMO_FORCED,
-  demoHistory,
-  demoRegionDetails,
-  getHistoricalAnalogues,
-  getRegionDetails,
-} from '../services/api';
+import { getHistoricalAnalogues, getRegionDetails } from '../services/api';
 import { mapConcurrent } from '../utils/async';
 import { pct, formatUtc } from '../utils/format';
 import { riskLabel } from '../utils/risk';
@@ -31,11 +25,10 @@ interface AnalogueRow {
 }
 
 export default function AnaloguesPage() {
-  const { leadDay, isDemo, map } = useForecastData();
-  const { enableDemo, retry } = useShell();
+  const { leadDay, map } = useForecastData();
+  const { retry } = useShell();
   const { selectedRegionId, selectRegion, regions, variable } = useAppStore();
 
-  const useLive = !isDemo && !DEMO_FORCED;
   const [scope, setScope] = useState<'watchlist' | 'all' | 'selected'>('watchlist');
   const [limit, setLimit] = useState(12);
 
@@ -54,23 +47,23 @@ export default function AnaloguesPage() {
 
     const rows: AnalogueRow[] = [];
     await mapConcurrent(targets, 5, async (r) => {
-      const history = useLive ? await getHistoricalAnalogues(r.region_id, limit) : demoHistory(r.region_id, limit);
+      const history = await getHistoricalAnalogues(r.region_id, limit);
       history.forEach((h) => rows.push({ region_name: r.name, region_id: r.region_id, ...h }));
     });
     return rows.sort((a, b) => a.valid_time.localeCompare(b.valid_time));
-  }, [scope, limit, useLive, catalogue.length]);
+  }, [scope, limit, catalogue.length]);
 
   const subjectId = selectedRegionId ?? catalogue[0]?.region_id ?? null;
 
   const subjectAnalysis = useAsync(async () => {
     if (!subjectId) return null;
-    return useLive ? getRegionDetails(subjectId, leadDay) : demoRegionDetails(subjectId, leadDay);
-  }, [subjectId, leadDay, useLive]);
+    return getRegionDetails(subjectId, leadDay);
+  }, [subjectId, leadDay]);
 
   const subjectHistory = useAsync(async () => {
     if (!subjectId) return [];
-    return useLive ? getHistoricalAnalogues(subjectId, 30) : demoHistory(subjectId, 30);
-  }, [subjectId, useLive]);
+    return getHistoricalAnalogues(subjectId, 30);
+  }, [subjectId]);
 
   const stats = useMemo(() => {
     const rows = scanned.data ?? [];
@@ -92,7 +85,6 @@ export default function AnaloguesPage() {
         eyebrow="Analysis"
         title="Historical Analogues"
         description="Has the model seen this situation before? Similar past cases and how often they ended in a bust."
-        source={isDemo ? 'demo' : 'live'}
         controls={<ForecastControls />}
         actions={
           <Button variant="secondary" onClick={() => scanned.reload()}>
@@ -101,13 +93,7 @@ export default function AnaloguesPage() {
         }
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" onRetry={retry} />
 
       <div className="mb-4 grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
         <Panel className="p-4">
@@ -161,7 +147,7 @@ export default function AnaloguesPage() {
           <h2 className="flex items-center gap-1.5 text-sm font-bold text-navy-900">
             <IconHistory width={16} height={16} className="text-blue-600" />
             Scanned cases
-            <InfoTip text="Every row is a historical verification record returned by /history. Nothing is fabricated when the endpoint returns nothing." />
+            <InfoTip text="Every row is a historical verification record for this region. Nothing is fabricated when no history exists." />
           </h2>
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-semibold text-slate-500">
@@ -178,7 +164,7 @@ export default function AnaloguesPage() {
           skeleton={<TableSkeleton rows={8} />}
           isEmpty={(d) => d.length === 0}
           emptyTitle="No historical cases for this scope."
-          emptyDescription="The reference dataset is not loaded for this deployment, so the history endpoint returned nothing. Nothing is invented in its place."
+          emptyDescription="No verification records were returned for these regions, so no rows are shown."
         >
           {(rows) => (
             <div className="panel overflow-hidden">
@@ -237,7 +223,6 @@ export default function AnaloguesPage() {
             <HistoricalAnaloguePanel
               analogs={data.historical_analogs}
               history={subjectHistory.data ?? undefined}
-              source={data.source}
             />
           )}
         </AsyncSection>

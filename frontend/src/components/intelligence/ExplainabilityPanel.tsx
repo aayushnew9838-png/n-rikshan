@@ -7,7 +7,7 @@ import { IconBulb, IconBook } from '../ui/icons';
 const GENERAL_CONTEXT = [
   'Multi-model spread measures how far GFS, ECMWF IFS, ICON and GEM disagree. Wide spread is a classic precursor of medium-range forecast failure.',
   'A forecast "bust" is an absolute error above the 90th percentile for that variable and lead day, estimated from the training period only.',
-  'Confidence is defined as 100 × (1 − calibrated bust probability) per the Nirikshan ML API contract.',
+  'Confidence is defined as 100 × (1 − calibrated bust probability), used consistently across the interface.',
   'Skill naturally declines with lead time as dynamical error grows; Day 6–10 is the medium-range window where bust risk accumulates.',
 ];
 
@@ -17,7 +17,6 @@ export function ExplainabilityPanel({
   contributions,
   modelReasons,
   stabilizers,
-  source,
   compact = false,
 }: {
   bustProbability: number;
@@ -25,7 +24,6 @@ export function ExplainabilityPanel({
   contributions: ReasonItem[];
   modelReasons: string[];
   stabilizers?: string[];
-  source: 'live' | 'demo';
   compact?: boolean;
 }) {
   const maxAbs = Math.max(0.0001, ...contributions.map((c) => Math.abs(c.contribution)));
@@ -52,9 +50,6 @@ export function ExplainabilityPanel({
           </div>
         </div>
         <div className="ml-auto flex flex-col items-end gap-1.5">
-          <Badge tone={source === 'demo' ? 'demo' : 'blue'}>
-            {source === 'demo' ? 'Demo dataset' : 'Model output'}
-          </Badge>
           <span className="text-[10px] text-slate-400">SHAP TreeExplainer contributions</span>
         </div>
       </div>
@@ -73,7 +68,7 @@ export function ExplainabilityPanel({
 
           {contributions.length === 0 ? (
             <p className="py-4 text-center text-sm text-slate-500">
-              The backend did not return feature contributions for this prediction.
+              No feature contributions were reported for this prediction.
             </p>
           ) : (
             <ul className="space-y-2.5">

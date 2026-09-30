@@ -4,17 +4,17 @@ import { ForecastControls } from '../components/forecast/ForecastControls';
 import { AlertPanel, alertMeta } from '../components/intelligence/AlertPanel';
 import { RiskRanking } from '../components/intelligence/RiskRanking';
 import { RegionDrawer } from '../components/intelligence/RegionDrawer';
-import { BackendBanner, SkeletonPanel, EmptyState } from '../components/ui/states';
+import { StatusBanner, SkeletonPanel, EmptyState } from '../components/ui/states';
 import { Badge, Button, Panel, Stat, SectionTitle, InfoTip } from '../components/ui/primitives';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useAppStore } from '../store/useAppStore';
 import { pct, relativeTime } from '../utils/format';
 import type { ReliabilityCell } from '../types';
 import { IconBell, IconRefresh, IconStar, IconStarFilled, IconCheck } from '../components/ui/icons';
 
 export default function AlertsPage() {
-  const { leadDay, isDemo, alerts, risk, dayWise } = useForecastData();
-  const { enableDemo, retry } = useShell();
+  const { leadDay, alerts, risk, dayWise } = useForecastData();
+  const { retry } = useShell();
   const { acknowledged, acknowledgeAlert, selectRegion, selectedRegionId, watchlist, toggleWatchlist, regions, setLeadDay } =
     useAppStore();
 
@@ -83,7 +83,6 @@ export default function AlertsPage() {
         eyebrow="System"
         title="Alerts & Watchlist"
         description="Conditions the system considers too unreliable to ignore, plus the locations you personally track."
-        source={isDemo ? 'demo' : 'live'}
         controls={<ForecastControls />}
         actions={
           <Button variant="secondary" onClick={() => alerts.reload()}>
@@ -92,13 +91,7 @@ export default function AlertsPage() {
         }
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" onRetry={retry} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Open alerts" value={open.length} animate tone={open.length ? 'risk' : 'calm'} />
@@ -114,8 +107,6 @@ export default function AlertsPage() {
           isEmpty={(d) => d.length === 0}
           emptyTitle="No alerts for this lead day."
           emptyDescription="Nothing crossed the alert thresholds. Switch lead day or lower the risk threshold to widen the rule."
-          showUnavailableAction
-          onEnableDemo={enableDemo}
         >
           {(data) => (
             <AlertPanel

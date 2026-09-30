@@ -7,9 +7,9 @@ import { ConfidenceMap } from '../components/map/ConfidenceMap';
 import { RiskRanking } from '../components/intelligence/RiskRanking';
 import { AlertPanel } from '../components/intelligence/AlertPanel';
 import { Stat, Button, InfoTip } from '../components/ui/primitives';
-import { BackendBanner, MapSkeleton, SkeletonPanel, ChartSkeleton } from '../components/ui/states';
+import { StatusBanner, MapSkeleton, SkeletonPanel, ChartSkeleton } from '../components/ui/states';
 import { Reveal } from '../components/motion/Reveal';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useAppStore } from '../store/useAppStore';
 import { riskColor, riskLabel } from '../utils/risk';
 import type { ReliabilityCell } from '../types';
@@ -27,8 +27,8 @@ const BANDS = [
 ];
 
 export default function Dashboard() {
-  const { leadDay, isDemo, overview, map, dayWise, risk, alerts, reloadAll } = useForecastData();
-  const { enableDemo, retry } = useShell();
+  const { leadDay, overview, map, dayWise, risk, alerts, reloadAll } = useForecastData();
+  const { retry } = useShell();
   const { selectRegion, selectedRegionId, acknowledgeAlert, toggleWatchlist, regions, setRegions, mapLayer, setLeadDay, acknowledged } =
     useAppStore();
 
@@ -91,7 +91,6 @@ export default function Dashboard() {
         eyebrow="Operations"
         title="Forecast Reliability Dashboard"
         description="Where, when and why medium-range forecasts are likely to fail. Select a region on the map to open its full intelligence panel."
-        source={isDemo ? 'demo' : 'live'}
         actions={
           <div className="hidden items-center gap-2 sm:flex">
             <Link to="/explainability">
@@ -105,13 +104,7 @@ export default function Dashboard() {
         controls={<ForecastControls showThresholds showLayer />}
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} notes={map.data?.notes} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" notes={map.data?.notes} onRetry={retry} />
 
       {/* --------------------------------------------------- map + summary */}
       <Reveal delay={40}>
@@ -135,7 +128,7 @@ export default function Dashboard() {
             </AsyncSection>
           </section>
 
-          <aside className="flex min-w-0 flex-col gap-4" aria-label="Live summary">
+          <aside className="flex min-w-0 flex-col gap-4" aria-label="Reliability summary">
             <AsyncSection state={overview} skeleton={<SkeletonPanel lines={4} />}>
               {(data) => (
                 <div className="nrk-stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
@@ -238,7 +231,7 @@ export default function Dashboard() {
               <div>
                 <div className="eyebrow flex items-center gap-2">
                   <span className="nrk-dot text-teal-500" aria-hidden="true" />
-                  Live risk field
+                  Regional risk field
                 </div>
                 <p className="mt-0.5 text-[11px] text-slate-400">
                   {globeMarkers.length} plotted regions · Day {leadDay}
@@ -344,8 +337,15 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="nrk-float" style={{ animationDelay: '1800ms' }}>
-                      <div className="eyebrow">Source</div>
-                      <div className="mt-0.5 text-[13px] font-bold text-navy-900">{isDemo ? 'Demo' : 'Live'}</div>
+                      <div className="eyebrow">Mean confidence</div>
+                      <div className="data-value mt-0.5 text-lg font-bold text-navy-900">
+                        <span className="nrk-roll" key={`c-${data.total}`}>
+                          {data.regions.length
+                            ? Math.round(data.regions.reduce((s, r) => s + r.confidence, 0) / data.regions.length)
+                            : 0}
+                          %
+                        </span>
+                      </div>
                     </div>
                   </div>
 

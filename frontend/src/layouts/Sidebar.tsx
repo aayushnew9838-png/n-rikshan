@@ -1,4 +1,4 @@
-﻿import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { cn } from '../utils/cn';
 import {
   NirikshanMark,
@@ -162,9 +162,10 @@ export function Sidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavig
       <div className="border-t border-ice-200 p-3">
         {!collapsed ? (
           <div className="rounded-lg bg-ice-50 p-3">
-            <div className="eyebrow mb-1">SIH 2026</div>
+            <div className="eyebrow mb-1">Forecast reliability</div>
             <p className="text-[11px] leading-relaxed text-slate-500">
-              SIH26079 - AI-Based Forecast Bust Detection for Medium-Range Weather Forecasts.
+              Calibrated bust detection, regional confidence and model explainability for medium-range
+              forecasts.
             </p>
           </div>
         ) : (

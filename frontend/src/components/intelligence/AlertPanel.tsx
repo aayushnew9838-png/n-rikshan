@@ -74,9 +74,6 @@ export function AlertPanel({
                   </span>
                   <span className="text-[13px] font-semibold text-navy-900">{alert.region_name}</span>
                   <span className="data-value text-[11px] text-slate-400">Day {alert.lead_day}</span>
-                  <Badge tone={alert.source === 'demo' ? 'demo' : 'blue'}>
-                    {alert.source === 'demo' ? 'Demo' : 'Live'}
-                  </Badge>
                   {isAck && <Badge tone="neutral">Acknowledged</Badge>}
                 </div>
                 <p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">{alert.reason}</p>

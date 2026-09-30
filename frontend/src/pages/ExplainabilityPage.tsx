@@ -2,12 +2,12 @@ import { PageHeader, AsyncSection } from '../components/layout/PageHeader';
 import { ForecastControls } from '../components/forecast/ForecastControls';
 import { ExplainabilityPanel } from '../components/intelligence/ExplainabilityPanel';
 import { RegionDrawer } from '../components/intelligence/RegionDrawer';
-import { BackendBanner, SkeletonPanel, EmptyState } from '../components/ui/states';
+import { StatusBanner, SkeletonPanel, EmptyState } from '../components/ui/states';
 import { Badge, Button, Stat, InfoTip, SectionTitle, Panel } from '../components/ui/primitives';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useAsync } from '../hooks/useAsync';
 import { useAppStore } from '../store/useAppStore';
-import { DEMO_FORCED, demoRegionDetails, getRegionDetails } from '../services/api';
+import { getRegionDetails } from '../services/api';
 import { humanizeFeature, pct, signed } from '../utils/format';
 import { confidenceColor, confidenceLabel, riskLabel } from '../utils/risk';
 import { IconBulb, IconCpu, IconShield, IconArrowRight } from '../components/ui/icons';
@@ -20,17 +20,15 @@ const CONTEXT = [
 ];
 
 export default function ExplainabilityPage() {
-  const { leadDay, isDemo, map } = useForecastData();
-  const { enableDemo, retry } = useShell();
+  const { leadDay, map } = useForecastData();
+  const { retry } = useShell();
   const { selectedRegionId, selectRegion, regions } = useAppStore();
-
-  const useLive = !isDemo && !DEMO_FORCED;
 
   const analysis = useAsync(async () => {
     const fallback = selectedRegionId ?? regions[0]?.region_id ?? map.data?.regions[0]?.region_id ?? null;
     if (!fallback) return null;
-    return useLive ? getRegionDetails(fallback, leadDay) : demoRegionDetails(fallback, leadDay);
-  }, [selectedRegionId, regions, map.data, leadDay, useLive]);
+    return getRegionDetails(fallback, leadDay);
+  }, [selectedRegionId, regions, map.data, leadDay]);
 
   const subjectId = analysis.data?.region_id ?? selectedRegionId ?? regions[0]?.region_id ?? null;
   const subjectName = regions.find((r) => r.region_id === subjectId)?.name ?? map.data?.regions.find((r) => r.region_id === subjectId)?.name ?? subjectId;
@@ -41,7 +39,6 @@ export default function ExplainabilityPage() {
         eyebrow="Analysis"
         title="Explainability"
         description="Why the model said what it said - feature contributions, plain-language statements and stabilising factors."
-        source={isDemo ? 'demo' : 'live'}
         controls={<ForecastControls />}
         actions={
           <Button variant="secondary" onClick={() => analysis.reload()}>
@@ -50,13 +47,7 @@ export default function ExplainabilityPage() {
         }
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" onRetry={retry} />
 
       <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Subject region" value={subjectName ?? '-'} />
@@ -108,7 +99,6 @@ export default function ExplainabilityPage() {
               contributions={data.reasons}
               modelReasons={data.plain_reasons}
               stabilizers={data.stabilizers}
-              source={data.source}
             />
           )}
         </AsyncSection>

@@ -1,15 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ForecastRegion, MapLayer } from '../types';
 import type { LayerMetric } from '../components/map/ConfidenceMap';
-import {
-  DEMO_FORCED,
-  getHistoricalAnalogues,
-  getRegionDetails,
-  demoHistory,
-  demoRegionDetails,
-} from '../services/api';
+import { getHistoricalAnalogues, getRegionDetails } from '../services/api';
 import { mapConcurrent } from '../utils/async';
-import { useAppStore } from '../store/useAppStore';
 
 const SPREAD_TOKENS = /mm_|spread|ensemble|disagreement|range_temp|cv_temp|std_temp|std_precip/i;
 
@@ -31,20 +24,16 @@ function normalize(values: Record<string, number>): LayerMetric {
  *  - disagreement : magnitude of multi-model-spread features in the model's
  *                   own SHAP top drivers (real model output).
  *  - error        : mean realised historical forecast error from `/history`.
- * Both require N requests, so results are cached by (layer, lead day, source).
+ * Both require N requests, so results are cached by (layer, lead day, ids).
  */
 export function useMapMetrics(
   layer: MapLayer,
   regions: ForecastRegion[],
   leadDay: number,
 ): { metrics: LayerMetric | null; loading: boolean; label?: string } {
-  const mode = useAppStore((s) => s.mode);
-  const backendState = useAppStore((s) => s.backendState);
   const [metrics, setMetrics] = useState<LayerMetric | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const isDemo = mode === 'demo' || (mode === 'auto' && backendState === 'offline');
-  const useLive = !isDemo && !DEMO_FORCED;
   const ids = useMemo(() => regions.map((r) => r.region_id).sort().join(','), [regions]);
 
   useEffect(() => {
@@ -53,7 +42,7 @@ export function useMapMetrics(
       setLoading(false);
       return;
     }
-    const key = `${layer}:${useLive ? 'live' : 'demo'}:${leadDay}:${ids}`;
+    const key = `${layer}:${leadDay}:${ids}`;
     const cached = cache.get(key);
     if (cached) {
       setMetrics(cached);
@@ -74,9 +63,7 @@ export function useMapMetrics(
       const raw: Record<string, number> = {};
       if (layer === 'disagreement') {
         await mapConcurrent(regions, 5, async (r) => {
-          const analysis = useLive
-            ? await getRegionDetails(r.region_id, leadDay)
-            : demoRegionDetails(r.region_id, leadDay);
+          const analysis = await getRegionDetails(r.region_id, leadDay);
           const spread = analysis.reasons
             .filter((reason) => SPREAD_TOKENS.test(reason.feature))
             .reduce((s, reason) => s + Math.abs(reason.contribution), 0);
@@ -84,7 +71,7 @@ export function useMapMetrics(
         });
       } else {
         await mapConcurrent(regions, 5, async (r) => {
-          const history = useLive ? await getHistoricalAnalogues(r.region_id, 30) : demoHistory(r.region_id, 30);
+          const history = await getHistoricalAnalogues(r.region_id, 30);
           if (!history.length) return;
           const mean = history.reduce((s, h) => s + h.actual_error, 0) / history.length;
           raw[r.region_id] = mean;
@@ -105,11 +92,11 @@ export function useMapMetrics(
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layer, leadDay, ids, useLive]);
+  }, [layer, leadDay, ids]);
 
   return {
     metrics,
     loading,
-    label: layer === 'disagreement' ? 'SHAP spread contribution (normalised)' : 'Mean realised error (normalised)',
+    label: layer === 'disagreement' ? 'Model-spread contribution (normalised)' : 'Mean realised error (normalised)',
   };
 }

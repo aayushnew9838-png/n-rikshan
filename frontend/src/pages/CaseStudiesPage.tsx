@@ -1,23 +1,21 @@
 import { useState } from 'react';
 import { PageHeader, AsyncSection } from '../components/layout/PageHeader';
-import { BackendBanner, SkeletonPanel, EmptyState, TableSkeleton } from '../components/ui/states';
+import { StatusBanner, SkeletonPanel, EmptyState, TableSkeleton } from '../components/ui/states';
 import { Badge, Button, Panel, SectionTitle, InfoTip, Stat, ConfidenceRing } from '../components/ui/primitives';
 import { ExplainabilityPanel } from '../components/intelligence/ExplainabilityPanel';
 import { HistoricalAnaloguePanel } from '../components/intelligence/HistoricalAnaloguePanel';
-import { useShell, useIsDemo } from '../hooks/useForecastData';
+import { useShell } from '../hooks/useForecastData';
 import { useAsync } from '../hooks/useAsync';
-import { DEMO_FORCED, demoCaseStudies, getCaseStudies } from '../services/api';
+import { getCaseStudies } from '../services/api';
 import { pct, formatUtc, signed, humanizeFeature } from '../utils/format';
 import { confidenceLabel, riskColor } from '../utils/risk';
 import { IconFile, IconTarget, IconBulb, IconHistory, IconArrowRight } from '../components/ui/icons';
 
 export default function CaseStudiesPage() {
-  const isDemo = useIsDemo();
-  const { enableDemo, retry } = useShell();
-  const useLive = !isDemo && !DEMO_FORCED;
+  const { retry } = useShell();
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const cases = useAsync(async () => (useLive ? getCaseStudies() : Promise.resolve(demoCaseStudies())), [useLive]);
+  const cases = useAsync(async () => getCaseStudies(), []);
 
   const open = cases.data?.find((c) => c.case_id === openId) ?? null;
 
@@ -27,7 +25,6 @@ export default function CaseStudiesPage() {
         eyebrow="Analysis"
         title="Case Studies"
         description="Documented forecast-bust events with the model's call, its drivers and the analogue set it consulted."
-        source={isDemo ? 'demo' : 'live'}
         actions={
           <Button variant="secondary" onClick={() => cases.reload()}>
             <IconFile width={15} height={15} /> Reload
@@ -35,13 +32,7 @@ export default function CaseStudiesPage() {
         }
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" onRetry={retry} />
 
       <AsyncSection
         state={cases}
@@ -49,8 +40,6 @@ export default function CaseStudiesPage() {
         isEmpty={(d) => d.length === 0}
         emptyTitle="No case studies published by this backend."
         emptyDescription="The ML service exposes case studies through /case-study/{id}; this deployment returned none."
-        showUnavailableAction
-        onEnableDemo={enableDemo}
       >
         {(list) => (
           <>
@@ -249,7 +238,7 @@ export default function CaseStudiesPage() {
                   </Panel>
 
                   <div className="space-y-4">
-                    <HistoricalAnaloguePanel analogs={open.historical_analogs} source={open.source} compact />
+                    <HistoricalAnaloguePanel analogs={open.historical_analogs} compact />
                     <Panel className="p-4">
                       <div className="eyebrow mb-1.5 flex items-center gap-1.5">
                         <IconHistory width={13} height={13} /> Location
@@ -257,9 +246,6 @@ export default function CaseStudiesPage() {
                       <p className="text-[12px] leading-relaxed text-slate-600">
                         {open.location.admin1} - lat {open.location.lat}, lon {open.location.lon}
                         {open.location.elevation_m !== undefined ? ` - ${open.location.elevation_m} m` : ''}
-                      </p>
-                      <p className="mt-1.5 text-[11px] text-slate-400">
-                        Source: {open.source === 'demo' ? 'demo dataset' : 'live model run'}
                       </p>
                     </Panel>
                   </div>
@@ -275,7 +261,6 @@ export default function CaseStudiesPage() {
                   }))}
                   modelReasons={open.explainability.key_risk_drivers}
                   stabilizers={open.explainability.stabilizing_factors}
-                  source={open.source}
                 />
               </section>
             )}
@@ -286,7 +271,7 @@ export default function CaseStudiesPage() {
       {cases.data && cases.data.length === 0 && (
         <EmptyState
           title="No case studies available."
-          description="Run the ML service with case-study artifacts to populate this page, or switch to demo mode."
+          description="No verified cases were returned for this deployment, so no dossier is listed."
         />
       )}
 

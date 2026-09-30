@@ -363,6 +363,85 @@ body {
 }
 
 
+/* route-level transition: quick fade + lift, never slower than 400ms */
+.nrk-page {
+  animation: pageIn 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* ------------------------------------------------------- landing experience */
+
+/* letter-by-letter title reveal */
+.nrk-letter {
+  opacity: 0;
+  transform: translateY(0.4em);
+}
+.nrk-letter--in {
+  animation: letterIn 640ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes letterIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.4em);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* pointer parallax on the hero visual */
+.nrk-parallax {
+  transform: perspective(1200px) rotateX(var(--nrk-px-y, 0deg)) rotateY(var(--nrk-px-x, 0deg))
+    translate3d(var(--nrk-tx, 0px), var(--nrk-ty, 0px), 0);
+  transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.nrk-parallax--off {
+  transform: none;
+  transition: none;
+}
+
+/* soft atmospheric halo behind the hero object */
+.nrk-glow-ring {
+  position: absolute;
+  inset: -6% -4%;
+  border-radius: 32px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(79, 168, 221, 0.32),
+    rgba(126, 200, 232, 0.12),
+    rgba(255, 255, 255, 0) 55%,
+    rgba(59, 130, 246, 0.22),
+    rgba(79, 168, 221, 0.32)
+  );
+  filter: blur(26px);
+  opacity: 0.7;
+  animation: orbitSpin 26s linear infinite;
+  pointer-events: none;
+}
+
+/* magnetic-feeling buttons */
+.nrk-magnetic {
+  display: inline-block;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nrk-magnetic:hover {
+  transform: translateY(-2px);
+}
+.nrk-magnetic:focus-within {
+  outline: none;
+}
+
 /* ---------------------------------------------------------------- reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

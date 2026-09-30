@@ -1,29 +1,39 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './layouts/AppShell';
+import { PageSkeleton } from './components/ui/states';
 import Landing from './pages/Landing';
-import Dashboard from './pages/Dashboard';
-import MapPage from './pages/MapPage';
-import LeadTimePage from './pages/LeadTimePage';
-import BustProbabilityPage from './pages/BustProbabilityPage';
-import ErrorPronePage from './pages/ErrorPronePage';
-import RegionsPage from './pages/RegionsPage';
-import ExplainabilityPage from './pages/ExplainabilityPage';
-import AnaloguesPage from './pages/AnaloguesPage';
-import VerificationPage from './pages/VerificationPage';
-import AnalyticsPage from './pages/AnalyticsPage';
-import CaseStudiesPage from './pages/CaseStudiesPage';
-import AlertsPage from './pages/AlertsPage';
-import SystemPage from './pages/SystemPage';
-import AboutPage from './pages/AboutPage';
-import HowItWorksPage from './pages/HowItWorksPage';
 import NotFound from './pages/NotFound';
+
+const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const MapPage = lazy(() => import('./pages/MapPage'));
+const LeadTimePage = lazy(() => import('./pages/LeadTimePage'));
+const BustProbabilityPage = lazy(() => import('./pages/BustProbabilityPage'));
+const ErrorPronePage = lazy(() => import('./pages/ErrorPronePage'));
+const RegionsPage = lazy(() => import('./pages/RegionsPage'));
+const ExplainabilityPage = lazy(() => import('./pages/ExplainabilityPage'));
+const AnaloguesPage = lazy(() => import('./pages/AnaloguesPage'));
+const VerificationPage = lazy(() => import('./pages/VerificationPage'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const CaseStudiesPage = lazy(() => import('./pages/CaseStudiesPage'));
+const AlertsPage = lazy(() => import('./pages/AlertsPage'));
+const SystemPage = lazy(() => import('./pages/SystemPage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/how-it-works" element={<HowItWorksPage />} />
+        <Route
+          path="/how-it-works"
+          element={
+            <Suspense fallback={<div className="mx-auto max-w-[1400px] px-5 py-16"><PageSkeleton /></div>}>
+              <HowItWorksPage />
+            </Suspense>
+          }
+        />
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/map" element={<MapPage />} />

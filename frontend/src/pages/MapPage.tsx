@@ -4,8 +4,8 @@ import { ConfidenceMap, type LayerMetric } from '../components/map/ConfidenceMap
 import { RiskRanking } from '../components/intelligence/RiskRanking';
 import { RegionDrawer } from '../components/intelligence/RegionDrawer';
 import { Button, SectionTitle, Stat, InfoTip, SegmentedControl } from '../components/ui/primitives';
-import { BackendBanner, MapSkeleton, SkeletonPanel, EmptyState } from '../components/ui/states';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { StatusBanner, MapSkeleton, SkeletonPanel, EmptyState } from '../components/ui/states';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useMapMetrics } from '../hooks/useMapMetrics';
 import { useAppStore } from '../store/useAppStore';
 import { IconEye, IconStar, IconStarFilled } from '../components/ui/icons';
@@ -25,13 +25,13 @@ const LAYER_COPY: Record<MapLayer, string> = {
   bust: 'Calibrated probability that the forecast will realise a large error.',
   risk_heat: 'Bust probability rendered as a soft heat field — use it to spot spatial clusters.',
   disagreement:
-    'Normalised magnitude of multi-model spread features in the model\'s own SHAP top drivers (real model output, requires N predictions).',
+    'Normalised magnitude of multi-model spread features among the model\'s own top drivers (requires a prediction for each region).',
   error: 'Mean realised absolute forecast error from the verification history at each location.',
 };
 
 export default function MapPage() {
-  const { leadDay, isDemo, map, risk, reloadAll } = useForecastData();
-  const { enableDemo, retry } = useShell();
+  const { leadDay, map, risk, reloadAll } = useForecastData();
+  const { retry } = useShell();
   const { mapLayer, setMapLayer, selectRegion, selectedRegionId, watchlist, toggleWatchlist, regions } = useAppStore();
   const { metrics, loading: metricsLoading } = useMapMetrics(mapLayer, map.data?.regions ?? [], leadDay);
 
@@ -43,17 +43,10 @@ export default function MapPage() {
         eyebrow="Operations"
         title="Forecast Confidence Map"
         description="The national picture of forecast reliability. Click any region to open its intelligence drawer."
-        source={isDemo ? 'demo' : 'live'}
         controls={<ForecastControls showThresholds showLayer />}
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} notes={map.data?.notes} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" notes={map.data?.notes} onRetry={retry} />
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <SegmentedControl ariaLabel="Map layer" options={LAYERS} value={mapLayer} onChange={setMapLayer} />
@@ -87,8 +80,8 @@ export default function MapPage() {
                   <div className="absolute inset-x-4 top-1/2 z-[700] -translate-y-1/2 rounded-xl border border-ice-200 bg-white/96 p-5 text-center shadow-lift backdrop-blur">
                     <p className="text-sm font-semibold text-navy-900">Derived layer unavailable</p>
                     <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-slate-500">
-                      {LAYER_COPY[mapLayer]} The backend did not return enough data to build it, so no values are shown
-                      rather than inventing any.
+                      {LAYER_COPY[mapLayer]} The analysis service did not return enough data to build it, so no
+                      values are shown rather than inventing any.
                     </p>
                     <Button className="mt-3" variant="secondary" onClick={() => setMapLayer('confidence')}>
                       Show confidence layer

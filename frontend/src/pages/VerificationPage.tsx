@@ -3,18 +3,18 @@ import { PageHeader, AsyncSection } from '../components/layout/PageHeader';
 import { ForecastControls } from '../components/forecast/ForecastControls';
 import { ForecastVerificationChart } from '../components/charts/ForecastVerificationChart';
 import { RegionDrawer } from '../components/intelligence/RegionDrawer';
-import { BackendBanner, ChartSkeleton, SkeletonPanel, TableSkeleton, EmptyState } from '../components/ui/states';
+import { StatusBanner, ChartSkeleton, SkeletonPanel, TableSkeleton, EmptyState } from '../components/ui/states';
 import { Badge, Button, Stat, Panel, SectionTitle, InfoTip, ConfidenceRing } from '../components/ui/primitives';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useAsync } from '../hooks/useAsync';
 import { useAppStore } from '../store/useAppStore';
-import { DEMO_FORCED, demoHistory, getForecastVerification } from '../services/api';
-import { LEAD_DAY_STATS, TEMPORAL_TEST, EVAL_GENERATED_AT, NATIONAL_POS_RATE } from '../data/demo/evalReport';
+import { getForecastVerification, getHistoricalAnalogues } from '../services/api';
+import { LEAD_DAY_STATS, TEMPORAL_TEST, EVAL_GENERATED_AT, NATIONAL_POS_RATE } from '../data/evaluation';
 import type { VerificationPoint } from '../types';
 import { pct, formatUtc, num } from '../utils/format';
 import { IconCompare, IconCheck, IconAlert, IconFile } from '../components/ui/icons';
 
-function toPoints(history: Awaited<ReturnType<typeof demoHistory>>): VerificationPoint[] {
+function toPoints(history: Awaited<ReturnType<typeof getHistoricalAnalogues>>): VerificationPoint[] {
   return history.map((h) => ({
     valid_time: h.valid_time,
     lead_day: h.lead_day,
@@ -30,10 +30,9 @@ function metric(value: number | undefined, digits = 3): string {
 }
 
 export default function VerificationPage() {
-  const { leadDay, isDemo, map } = useForecastData();
-  const { enableDemo, retry } = useShell();
+  const { leadDay, map } = useForecastData();
+  const { retry } = useShell();
   const { selectedRegionId, selectRegion, regions, setLeadDay } = useAppStore();
-  const useLive = !isDemo && !DEMO_FORCED;
   const [showFull, setShowFull] = useState(false);
 
   const catalogue = regions.length ? regions : map.data?.regions ?? [];
@@ -42,9 +41,9 @@ export default function VerificationPage() {
 
   const points = useAsync(async () => {
     if (!subjectId) return [];
-    const history = useLive ? await getForecastVerification(subjectId) : toPoints(demoHistory(subjectId, 40));
+    const history = await getForecastVerification(subjectId);
     return history.sort((a, b) => a.valid_time.localeCompare(b.valid_time));
-  }, [subjectId, useLive]);
+  }, [subjectId]);
 
   const stats = useMemo(() => {
     const rows = points.data ?? [];
@@ -87,7 +86,6 @@ export default function VerificationPage() {
         eyebrow="Analysis"
         title="Forecast vs Verification"
         description="What the model predicted, and what actually happened - the only honest way to judge a reliability system."
-        source={isDemo ? 'demo' : 'live'}
         controls={<ForecastControls />}
         actions={
           <Button variant="secondary" onClick={() => points.reload()}>
@@ -96,13 +94,7 @@ export default function VerificationPage() {
         }
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" onRetry={retry} />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className="eyebrow">Region</span>
@@ -155,9 +147,7 @@ export default function VerificationPage() {
           skeleton={<ChartSkeleton height={300} />}
           isEmpty={(d) => d.length === 0}
           emptyTitle="No verification history for this region."
-          emptyDescription="The backend returned no historical cases, so no chart is drawn. Switch to demo data to explore the module with documented sample records."
-          showUnavailableAction
-          onEnableDemo={enableDemo}
+          emptyDescription="No verified cases were returned for this region, so no chart is drawn."
         >
           {(data) => <ForecastVerificationChart points={data} />}
         </AsyncSection>
@@ -293,7 +283,7 @@ export default function VerificationPage() {
         <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-1.5 text-sm font-bold text-navy-900">
             Raw verification record
-            <InfoTip text="Every row is what /history returned for this region. Blank panels mean empty history, never invented values." />
+            <InfoTip text="Every row is a verification record for this region. Blank panels mean no history was recorded, never invented values." />
           </h2>
           <span className="text-[11px] font-semibold text-slate-500">{points.data?.length ?? 0} records</span>
         </div>
@@ -302,7 +292,7 @@ export default function VerificationPage() {
           skeleton={<TableSkeleton rows={6} />}
           isEmpty={(d) => d.length === 0}
           emptyTitle="No verification records."
-          emptyDescription="Nothing was returned for this region - the table stays empty rather than being padded with sample rows."
+          emptyDescription="Nothing was returned for this region, so the table stays empty."
         >
           {(data) => (
             <div className="panel overflow-hidden">
@@ -350,7 +340,7 @@ export default function VerificationPage() {
       {!points.data?.length && !points.loading && !points.error && (
         <EmptyState
           title="Nothing verified yet for this region."
-          description="Pick another region, or switch the application to demo mode to exercise the module."
+          description="Choose a different region above to review its verification record."
         />
       )}
 

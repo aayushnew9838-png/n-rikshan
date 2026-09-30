@@ -3,12 +3,6 @@ import type { ShellContext } from '../layouts/AppShell';
 import { useAppStore } from '../store/useAppStore';
 import { useAsync } from './useAsync';
 import {
-  DEMO_FORCED,
-  demoAlerts,
-  demoConfidenceMap,
-  demoDayWiseConfidence,
-  demoOverview,
-  demoRiskAreas,
   getAlerts,
   getConfidenceMap,
   getDayWiseConfidence,
@@ -20,24 +14,15 @@ export function useShell(): ShellContext {
   return useOutletContext<ShellContext>();
 }
 
-/** True when demo values are being shown (user-forced, or live backend offline in auto mode). */
-export function useIsDemo(): boolean {
-  const { mode, backendState } = useAppStore();
-  if (DEMO_FORCED) return true;
-  if (mode === 'demo') return true;
-  if (mode === 'live') return false;
-  return backendState === 'offline';
-}
-
+/** Forecast intelligence for the active lead day — always service-backed. */
 export function useForecastData() {
   const leadDay = useAppStore((s) => s.leadDay);
-  const isDemo = useIsDemo();
 
-  const overview = useAsync(async () => (isDemo ? demoOverview(leadDay) : getOverview(leadDay)), [leadDay, isDemo]);
-  const map = useAsync(async () => (isDemo ? demoConfidenceMap(leadDay) : getConfidenceMap(leadDay)), [leadDay, isDemo]);
-  const dayWise = useAsync(async () => (isDemo ? demoDayWiseConfidence() : getDayWiseConfidence()), [isDemo]);
-  const risk = useAsync(async () => (isDemo ? demoRiskAreas(leadDay, 20) : getRiskAreas(leadDay, 20)), [leadDay, isDemo]);
-  const alerts = useAsync(async () => (isDemo ? demoAlerts() : getAlerts(leadDay)), [leadDay, isDemo]);
+  const overview = useAsync(async () => getOverview(leadDay), [leadDay]);
+  const map = useAsync(async () => getConfidenceMap(leadDay), [leadDay]);
+  const dayWise = useAsync(async () => getDayWiseConfidence(), []);
+  const risk = useAsync(async () => getRiskAreas(leadDay, 20), [leadDay]);
+  const alerts = useAsync(async () => getAlerts(leadDay), [leadDay]);
 
   const reloadAll = () => {
     overview.reload();
@@ -47,5 +32,5 @@ export function useForecastData() {
     alerts.reload();
   };
 
-  return { leadDay, isDemo, overview, map, dayWise, risk, alerts, reloadAll };
+  return { leadDay, overview, map, dayWise, risk, alerts, reloadAll };
 }

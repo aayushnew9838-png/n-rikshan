@@ -3,19 +3,13 @@ import { PageHeader, AsyncSection } from '../components/layout/PageHeader';
 import { ForecastControls } from '../components/forecast/ForecastControls';
 import { RiskRanking } from '../components/intelligence/RiskRanking';
 import { RegionDrawer } from '../components/intelligence/RegionDrawer';
-import { BackendBanner, ChartSkeleton, SkeletonPanel } from '../components/ui/states';
+import { StatusBanner, ChartSkeleton, SkeletonPanel } from '../components/ui/states';
 import { Stat, Badge, SectionTitle, InfoTip, Button } from '../components/ui/primitives';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useMapMetrics } from '../hooks/useMapMetrics';
 import { useAppStore } from '../store/useAppStore';
 import { useAsync } from '../hooks/useAsync';
-import {
-  DEMO_FORCED,
-  demoHistory,
-  demoRegionDetails,
-  getHistoricalAnalogues,
-  getRegionDetails,
-} from '../services/api';
+import { getHistoricalAnalogues, getRegionDetails } from '../services/api';
 import { mapConcurrent } from '../utils/async';
 import { confidenceColor, confidenceLabel, riskLabel } from '../utils/risk';
 import { IconActivity, IconArrowRight, IconRefresh } from '../components/ui/icons';
@@ -33,12 +27,11 @@ interface ErrorProneRow {
 }
 
 export default function ErrorPronePage() {
-  const { leadDay, isDemo, map, risk } = useForecastData();
-  const { enableDemo, retry } = useShell();
-  const { selectRegion, selectedRegionId, mode, backendState } = useAppStore();
+  const { leadDay, map, risk } = useForecastData();
+  const { retry } = useShell();
+  const { selectRegion, selectedRegionId } = useAppStore();
   const [limit, setLimit] = useState(12);
 
-  const useLive = !isDemo && !DEMO_FORCED;
   const regions = map.data?.regions ?? [];
   const { metrics, loading: metricsLoading, label: metricLabel } = useMapMetrics('error', regions, leadDay);
 
@@ -50,8 +43,8 @@ export default function ErrorPronePage() {
     const out: ErrorProneRow[] = [];
     await mapConcurrent(candidates, 4, async (r) => {
       const [history, analysis] = await Promise.all([
-        useLive ? getHistoricalAnalogues(r.region_id, 30) : Promise.resolve(demoHistory(r.region_id, 30)),
-        useLive ? getRegionDetails(r.region_id, leadDay) : Promise.resolve(demoRegionDetails(r.region_id, leadDay)),
+        getHistoricalAnalogues(r.region_id, 30),
+        getRegionDetails(r.region_id, leadDay),
       ]);
       const meanError = history.length ? history.reduce((s, h) => s + h.actual_error, 0) / history.length : 0;
       out.push({
@@ -67,7 +60,7 @@ export default function ErrorPronePage() {
       });
     });
     return out.sort((a, b) => b.meanError - a.meanError);
-  }, [limit, leadDay, useLive, isDemo]);
+  }, [limit, leadDay]);
 
   const ranked = useMemo(() => (risk.data ?? []).slice(0, 20), [risk.data]);
   const worstConfidence = rows.data?.[0];
@@ -79,7 +72,6 @@ export default function ErrorPronePage() {
         eyebrow="Operations"
         title="Error-Prone Areas"
         description="Locations where the medium-range forecast has historically realised the largest errors, and where the current run is least trustworthy."
-        source={isDemo ? 'demo' : 'live'}
         controls={<ForecastControls showThresholds />}
         actions={
           <Button variant="secondary" onClick={() => rows.reload()}>
@@ -88,13 +80,7 @@ export default function ErrorPronePage() {
         }
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" onRetry={retry} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Regions screened" value={regions.length} animate />
@@ -119,7 +105,7 @@ export default function ErrorPronePage() {
           <h2 className="flex items-center gap-1.5 text-sm font-bold text-navy-900">
             <IconActivity width={16} height={16} className="text-blue-600" />
             Realised historical error by region
-            <InfoTip text="Mean absolute forecast error computed from the verification history returned by /history. Missing history is reported as zero samples, never as an invented value." />
+              <InfoTip text="Mean absolute forecast error computed from the region's verification history. Missing history is reported as zero samples, never as an invented value." />
           </h2>
           <div className="flex items-center gap-3">
             {metricsLoading && (
@@ -148,7 +134,7 @@ export default function ErrorPronePage() {
           skeleton={<ChartSkeleton height={280} />}
           isEmpty={(d) => d.length === 0}
           emptyTitle="No verification history for these regions."
-          emptyDescription="The reference dataset has not been loaded for this deployment, so no error statistics are shown."
+          emptyDescription="No verification history was returned for the screened regions, so no error statistics are shown."
         >
           {(data) => {
             const max = Math.max(1, ...data.map((r) => r.meanError));
@@ -284,8 +270,8 @@ export default function ErrorPronePage() {
               </>
             ) : (
               <p className="text-[12px] leading-relaxed text-slate-500">
-                The derived error layer could not be computed for this deployment — the history endpoint returned no
-                usable samples. No synthetic values are substituted.
+                The derived error layer could not be computed — the history endpoint returned no usable records for the
+                screened regions.
               </p>
             )}
           </div>
@@ -308,9 +294,6 @@ export default function ErrorPronePage() {
             <p className="mt-2 text-[11px] text-slate-400">
               Selected region: {selectedRegionId ?? 'none'} - day {leadDay} - risk band{' '}
               {ranked[0] ? riskLabel(ranked[0].bust_probability) : 'n/a'}.
-            </p>
-            <p className="mt-1 text-[11px] text-slate-400">
-              Source mode: {mode} / backend {backendState}.
             </p>
           </div>
         </div>

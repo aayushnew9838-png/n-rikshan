@@ -10,18 +10,15 @@
  * and normalises BOTH response shapes into one frontend contract
  * (see docs/frontend-api-contract.md).
  *
- * Modes (VITE_DEMO_MODE):
- *   unset  -> live only. Unreachable backend surfaces as `ApiUnavailableError`.
- *   "true" -> demo dataset (badged DEMO everywhere).
- *   "false"| "0" -> live only, demo switch disabled.
- *
- * Live mode NEVER silently substitutes demo values.
+ * The client only ever speaks to the analysis service. When the service cannot
+ * be reached every call rejects with `ApiUnavailableError`, and the UI renders
+ * a neutral "intelligence unavailable" state with a retry action. No values are
+ * ever invented client-side.
  */
 import type {
   Alert,
   AnalyticsBundle,
   CaseStudy,
-  DataSource,
   DayWiseConfidence,
   EvaluationReport,
   ForecastRegion,
@@ -39,19 +36,6 @@ import type {
 } from '../types';
 import { confidenceCategory, confidenceFromBust, bustRiskLevel } from '../utils/risk';
 import { clamp } from '../utils/format';
-import * as demo from '../data/demo/dataset';
-import { DEMO_REGIONS } from '../data/demo/regions';
-import {
-  DATASET_FACTS,
-  EVAL_GENERATED_AT,
-  FEATURE_IMPORTANCE,
-  LEAD_DAY_STATS,
-  MODEL_COMPARISON,
-  REGIONAL_STATS,
-  SPLIT_MANIFEST,
-  TEMPORAL_TEST,
-  VARIABLE_STATS,
-} from '../data/demo/evalReport';
 
 /* ------------------------------------------------------------------ config */
 
@@ -59,10 +43,6 @@ const env = import.meta.env;
 
 export const API_BASE: string = (env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:8000';
 export const SPLINE_SCENE: string = (env.VITE_SPLINE_SCENE as string | undefined) || '';
-
-const demoFlag = (env.VITE_DEMO_MODE as string | undefined)?.toLowerCase();
-export const DEMO_DISABLED = demoFlag === 'false' || demoFlag === '0';
-export const DEMO_FORCED = demoFlag === 'true' || demoFlag === '1';
 
 /* ------------------------------------------------------------------ errors */
 
@@ -139,9 +119,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     if (res.status === 404) {
-      throw new ApiUnavailableError('Endpoint not exposed by the running backend.', { status: 404, path });
+      throw new ApiUnavailableError('The analysis service does not expose this capability.', { status: 404, path });
     }
-    throw new ApiUnavailableError(`Backend responded ${res.status}.`, { status: res.status, path });
+    throw new ApiUnavailableError(`The analysis service responded with an error (${res.status}).`, {
+      status: res.status,
+      path,
+    });
   }
   return (await res.json()) as T;
 }
@@ -196,7 +179,7 @@ interface RawPredictResponse {
   timestamp?: string;
 }
 
-function normalizePrediction(raw: RawPredictResponse, source: DataSource): RegionAnalysis {
+function normalizePrediction(raw: RawPredictResponse): RegionAnalysis {
   const p = clamp(Number(raw.bust_probability) || 0, 0, 1);
   const confidence = confidenceFromBust(p);
   const shapReasons = normalizeReasons(raw.top_reasons);
@@ -229,11 +212,10 @@ function normalizePrediction(raw: RawPredictResponse, source: DataSource): Regio
       : undefined,
     model_version: raw.model_version,
     timestamp: raw.timestamp,
-    source,
   };
 }
 
-/** Detects the placeholder 4-region US catalogue the backend emits without a reference dataset. */
+/** Detects a region catalogue emitted without the loaded reference dataset. */
 function looksLikeFallbackCatalogue(regions: RegionInfo[]): boolean {
   if (regions.length === 0) return true;
   const inIndia = regions.filter((r) => r.lat >= 5 && r.lat <= 38 && r.lon >= 65 && r.lon <= 100);
@@ -252,7 +234,6 @@ export async function getHealth(): Promise<HealthStatus> {
     model_loaded: Boolean(raw.model_loaded ?? raw.models_ready),
     model_version: raw.model_version ?? null,
     prefix,
-    source: 'live',
   };
 }
 
@@ -283,10 +264,9 @@ export interface OverviewData {
   regions: RegionInfo[];
   cells: ReliabilityCell[];
   notes: string[];
-  source: DataSource;
 }
 
-function buildOverview(regions: RegionInfo[], cells: ReliabilityCell[], leadDay: number, source: DataSource): OverviewData {
+function buildOverview(regions: RegionInfo[], cells: ReliabilityCell[], leadDay: number): OverviewData {
   const dayCells = cells.filter((c) => c.lead_day === leadDay);
   const nameOf = (id: string) => regions.find((r) => r.region_id === id)?.name ?? id;
   const highRisk = dayCells.filter((c) => c.bust_probability >= 0.5);
@@ -299,7 +279,6 @@ function buildOverview(regions: RegionInfo[], cells: ReliabilityCell[], leadDay:
   return {
     regions,
     cells,
-    source,
     notes: [],
     stats: {
       forecasts_analysed: dayCells.length,
@@ -316,7 +295,6 @@ function buildOverview(regions: RegionInfo[], cells: ReliabilityCell[], leadDay:
         : null,
       mean_confidence: meanConfidence,
       lead_day: leadDay,
-      source,
     },
   };
 }
@@ -326,10 +304,10 @@ export async function getOverview(leadDay: number): Promise<OverviewData> {
   const notes: string[] = [];
   if (looksLikeFallbackCatalogue(regions)) {
     notes.push(
-      'Backend returned its placeholder region catalogue — the reference dataset (backend/artifacts/reference_dataset.parquet) is not loaded.',
+      'Region catalogue incomplete - the reference dataset has not been loaded on the analysis service.',
     );
   }
-  const overview = buildOverview(regions, cells, leadDay, 'live');
+  const overview = buildOverview(regions, cells, leadDay);
   overview.notes = notes;
   return overview;
 }
@@ -340,7 +318,6 @@ export interface ConfidenceMapData {
   high_risk_count: number;
   total: number;
   notes: string[];
-  source: DataSource;
 }
 
 export async function getConfidenceMap(leadDay: number): Promise<ConfidenceMapData> {
@@ -359,9 +336,8 @@ export async function getConfidenceMap(leadDay: number): Promise<ConfidenceMapDa
     high_risk_count: points.filter((p) => p.bust_probability >= 0.5).length,
     total: points.length,
     notes: looksLikeFallbackCatalogue(regions)
-      ? ['Backend is serving its placeholder region catalogue (no reference dataset loaded).']
+      ? ['Region catalogue incomplete - the reference dataset has not been loaded on the analysis service.']
       : [],
-    source: 'live',
   };
 }
 
@@ -403,7 +379,7 @@ export async function getRegionDetails(regionId: string, leadDay: number): Promi
     method: 'POST',
     body: JSON.stringify({ region_id: regionId, lead_day: leadDay }),
   });
-  return normalizePrediction(raw, 'live');
+  return normalizePrediction(raw);
 }
 
 export async function getExplainability(regionId: string, leadDay: number): Promise<RegionAnalysis> {
@@ -457,7 +433,6 @@ export async function getAlerts(leadDay: number): Promise<Alert[]> {
         reason: `Calibrated bust probability ${Math.round(r.bust_probability * 100)}% reached the critical band for Day ${leadDay}.`,
         created_at: now,
         status: 'open',
-        source: 'live',
       });
     } else if (r.confidence < 40) {
       alerts.push({
@@ -471,7 +446,6 @@ export async function getAlerts(leadDay: number): Promise<Alert[]> {
         reason: `Forecast confidence ${r.confidence}% is below the 40% very-low threshold for Day ${leadDay}.`,
         created_at: now,
         status: 'open',
-        source: 'live',
       });
     }
     const before = prevById.get(r.region_id);
@@ -487,7 +461,6 @@ export async function getAlerts(leadDay: number): Promise<Alert[]> {
         reason: `Confidence fell ${Math.round(before.confidence - r.confidence)} points from Day ${leadDay - 1} to Day ${leadDay}.`,
         created_at: now,
         status: 'open',
-        source: 'live',
       });
     }
   }
@@ -508,12 +481,12 @@ export async function getCaseStudies(): Promise<CaseStudy[]> {
   for (const id of KNOWN_CASE_IDS) {
     try {
       const raw = await request<Record<string, unknown>>(`/case-study/${encodeURIComponent(id)}`);
-      out.push({ ...(raw as unknown as CaseStudy), source: 'live' });
+      out.push({ ...(raw as unknown as CaseStudy) });
     } catch {
       /* endpoint belongs to the ML service only — skip silently */
     }
   }
-  if (!out.length) throw new ApiUnavailableError('Case study endpoint not exposed by the running backend.');
+  if (!out.length) throw new ApiUnavailableError('Historical case studies are not available from the analysis service.');
   return out;
 }
 
@@ -543,7 +516,6 @@ export async function getModelInfo(): Promise<ModelInfo> {
       ? (modelCard.top_features as { feature: string; importance: number }[])
       : undefined,
     raw: Object.keys(modelCard).length ? modelCard : undefined,
-    source: 'live',
   };
 }
 
@@ -551,12 +523,11 @@ export async function getModelInfo(): Promise<ModelInfo> {
 
 /**
  * Per-model forecast values are an input to the ML feature engine, not an output
- * of the current backend. When the backend does not expose them we return
- * `null` and the UI renders an explicit "not exposed" state — we never invent
- * model values in live mode.
+ * of the analysis service. Until the service exposes them we return `null` and
+ * the UI renders an explicit "not available for this view" state — model values
+ * are never invented client-side.
  */
 export async function getMultiModel(): Promise<MultiModelAgreement | null> {
-  if (DEMO_FORCED) return demo.demoMultiModel('temperature_2m');
   return null;
 }
 
@@ -603,8 +574,8 @@ export async function getAnalytics(leadDays: number): Promise<AnalyticsBundle> {
     .sort((a, b) => b.mean_bust_probability - a.mean_bust_probability);
 
   if (!report) {
-    notes.push('Evaluation report endpoint (`/reports/evaluation-summary`) is not exposed by the running backend.');
-    notes.push('Model-comparison, calibration and variable-wise charts are therefore unavailable in live mode.');
+    notes.push('Held-out evaluation results are not published by the analysis service.');
+    notes.push('Model-comparison, calibration and variable-wise charts stay hidden until they are.');
   }
 
   return {
@@ -628,172 +599,6 @@ export async function getAnalytics(leadDays: number): Promise<AnalyticsBundle> {
           brier: m.brier_score ?? null,
         }))
       : undefined,
-    source: 'live',
     notes,
   };
 }
-
-/* --------------------------------------------------------------- demo modes */
-
-export function demoOverview(leadDay: number): OverviewData {
-  const regions = DEMO_REGIONS.map(({ regionalBaseRate: _r, ...r }) => r);
-  const cells = demo.demoAllCells();
-  return buildOverview(regions, cells, leadDay, 'demo');
-}
-
-export function demoConfidenceMap(leadDay: number): ConfidenceMapData {
-  const cells = demo.demoCells(leadDay);
-  const points: ForecastRegion[] = cells.map((c) => {
-    const region = DEMO_REGIONS.find((r) => r.region_id === c.region_id)!;
-    return { ...region, ...c, lead_day: leadDay };
-  });
-  return {
-    lead_day: leadDay,
-    regions: points,
-    high_risk_count: points.filter((p) => p.bust_probability >= 0.5).length,
-    total: points.length,
-    notes: [],
-    source: 'demo',
-  };
-}
-
-export function demoDayWiseConfidence(): DayWiseConfidence {
-  return {
-    regions: DEMO_REGIONS.map(({ regionalBaseRate: _r, ...r }) => r),
-    days: demo.DEMO_DAYS,
-    cells: demo.demoAllCells(),
-  };
-}
-
-export function demoRiskAreas(leadDay: number, limit = 20): RiskArea[] {
-  return [...demo.demoCells(leadDay)]
-    .sort((a, b) => b.bust_probability - a.bust_probability)
-    .slice(0, limit)
-    .map((c) => {
-      const region = DEMO_REGIONS.find((r) => r.region_id === c.region_id)!;
-      return {
-        region_id: region.region_id,
-        name: region.name,
-        lat: region.lat,
-        lon: region.lon,
-        admin1: region.admin1,
-        lead_day: leadDay,
-        bust_probability: c.bust_probability,
-        confidence: c.confidence,
-        confidence_category: c.confidence_category,
-        bust_risk: c.bust_risk,
-      };
-    });
-}
-
-export function demoAnalytics(): AnalyticsBundle {
-  return {
-    bust_rate_by_lead: LEAD_DAY_STATS.map((s) => ({ lead_day: s.lead_day, bust_rate: s.pos_rate, n: s.n_samples })),
-    confidence_by_lead: LEAD_DAY_STATS.filter((s) => s.mean_confidence !== undefined).map((s) => ({
-      lead_day: s.lead_day,
-      mean_confidence: s.mean_confidence as number,
-    })),
-    regional_risk: REGIONAL_STATS.map((s) => ({
-      region_id: s.admin1,
-      region_name: s.admin1,
-      mean_bust_probability: s.pos_rate,
-      n: s.n_samples,
-    })),
-    model_comparison: MODEL_COMPARISON.map((m) => ({
-      model: m.label,
-      roc_auc: m.roc_auc,
-      pr_auc: m.pr_auc,
-      brier: m.brier,
-      f1: m.f1,
-    })),
-    variable_performance: VARIABLE_STATS.map((v) => ({
-      variable: v.label,
-      roc_auc: v.roc_auc,
-      pr_auc: v.pr_auc,
-      brier: v.brier,
-    })),
-    calibration: buildCalibrationCurve(),
-    source: 'demo',
-    notes: ['Values sourced from ml/reports/evaluation_summary.json (held-out temporal test, n = 18,816).'],
-  };
-}
-
-/** Reliability curve reconstructed from the report Brier score / ECE pair — illustrative binning. */
-function buildCalibrationCurve(): { predicted: number; observed: number; count: number }[] {
-  const bins = Array.from({ length: 10 }, (_, i) => i);
-  const ece = TEMPORAL_TEST.ece;
-  return bins.map((i) => {
-    const predicted = (i + 0.5) / 10;
-    const drift = Math.sin(predicted * Math.PI) * ece * 1.6;
-    const observed = clamp(predicted + (i % 2 === 0 ? drift : -drift), 0.01, 0.99);
-    return {
-      predicted: Math.round(predicted * 100) / 100,
-      observed: Math.round(observed * 100) / 100,
-      count: Math.round(TEMPORAL_TEST.n_samples / 10 / Math.max(0.35, Math.sin(predicted * Math.PI) + 0.4)),
-    };
-  });
-}
-
-export function demoModelInfo(): ModelInfo {
-  return {
-    model_name: 'nirikshan_xgboost_bust_detector',
-    model_version: 'ml-pipeline-2026-09-24',
-    calibration_method: 'isotonic',
-    n_features: DATASET_FACTS ? 133 : undefined,
-    primary_target: 'overall_bust',
-    training_period: SPLIT_MANIFEST.train,
-    validation_period: SPLIT_MANIFEST.validation,
-    test_period: SPLIT_MANIFEST.test,
-    last_model_update: EVAL_GENERATED_AT,
-    top_features: FEATURE_IMPORTANCE.slice(0, 8),
-    raw: {
-      evaluation_report: 'ml/reports/evaluation_summary.json',
-      temporal_test: TEMPORAL_TEST,
-      dataset: DATASET_FACTS,
-      split: SPLIT_MANIFEST,
-      source_files: [
-        'ml/reports/evaluation_summary.json',
-        'ml/reports/final_results.md',
-        'ml/reports/feature_importance.md',
-        'ml/artifacts/split_manifest.json',
-        'ml/reports/data_inventory.json',
-      ],
-    },
-    source: 'demo',
-  };
-}
-
-export function demoAlerts(): Alert[] {
-  return demo.demoAlerts();
-}
-
-export function demoRegionDetails(regionId: string, leadDay: number): RegionAnalysis {
-  return demo.demoRegionAnalysis(regionId, leadDay);
-}
-
-export function demoHistory(regionId: string, limit = 20): HistoricalCase[] {
-  return demo.demoHistory(regionId, limit);
-}
-
-export function demoCaseStudies(): CaseStudy[] {
-  return demo.demoCaseStudies();
-}
-
-export function demoMultiModelFor(variable: VariableKey): MultiModelAgreement {
-  return demo.demoMultiModel(variable);
-}
-
-export function demoHealth(): HealthStatus {
-  return { status: 'DEMO', model_loaded: false, model_version: 'demo-1.0.0', source: 'demo' };
-}
-
-export const DEMO_EVALUATION_FACTS = {
-  temporal_test: TEMPORAL_TEST,
-  lead_day_stats: LEAD_DAY_STATS,
-  model_comparison: MODEL_COMPARISON,
-  variable_stats: VARIABLE_STATS,
-  feature_importance: FEATURE_IMPORTANCE,
-  dataset: DATASET_FACTS,
-  split: SPLIT_MANIFEST,
-  generated_at: EVAL_GENERATED_AT,
-};

@@ -5,20 +5,12 @@ import { ConfidenceStrip } from '../components/forecast/ConfidenceStrip';
 import { ExplainabilityPanel } from '../components/intelligence/ExplainabilityPanel';
 import { HistoricalAnaloguePanel } from '../components/intelligence/HistoricalAnaloguePanel';
 import { MultiModelAgreementPanel } from '../components/intelligence/MultiModelAgreementPanel';
-import { BackendBanner, SkeletonPanel, EmptyState, ChartSkeleton } from '../components/ui/states';
+import { StatusBanner, SkeletonPanel, EmptyState, ChartSkeleton } from '../components/ui/states';
 import { Badge, Button, Stat, Select, InfoTip, SectionTitle, ConfidenceRing, ProbabilityBar } from '../components/ui/primitives';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useAsync } from '../hooks/useAsync';
 import { useAppStore } from '../store/useAppStore';
-import {
-  DEMO_FORCED,
-  demoHistory,
-  demoRegionDetails,
-  demoMultiModelFor,
-  getHistoricalAnalogues,
-  getMultiModel,
-  getRegionDetails,
-} from '../services/api';
+import { getHistoricalAnalogues, getMultiModel, getRegionDetails } from '../services/api';
 import { VARIABLES } from '../types';
 import type { VariableKey } from '../types';
 import { confidenceColor, confidenceLabel, riskLabel, confidenceMeaning } from '../utils/risk';
@@ -26,28 +18,24 @@ import { pct, formatUtc } from '../utils/format';
 import { IconGlobe, IconStar, IconStarFilled, IconBulb, IconHistory, IconTarget } from '../components/ui/icons';
 
 export default function RegionsPage() {
-  const { leadDay, isDemo, map, dayWise } = useForecastData();
-  const { enableDemo, retry } = useShell();
+  const { leadDay, map, dayWise } = useForecastData();
+  const { retry } = useShell();
   const { regions, setRegions, selectedRegionId, selectRegion, watchlist, toggleWatchlist, variable, setVariable } =
     useAppStore();
 
-  const useLive = !isDemo && !DEMO_FORCED;
   const list = regions.length ? regions : map.data?.regions ?? [];
 
   const analysis = useAsync(async () => {
     if (!selectedRegionId) return null;
-    return useLive ? getRegionDetails(selectedRegionId, leadDay) : demoRegionDetails(selectedRegionId, leadDay);
-  }, [selectedRegionId, leadDay, useLive]);
+    return getRegionDetails(selectedRegionId, leadDay);
+  }, [selectedRegionId, leadDay]);
 
   const history = useAsync(async () => {
     if (!selectedRegionId) return [];
-    return useLive ? getHistoricalAnalogues(selectedRegionId, 24) : demoHistory(selectedRegionId, 24);
-  }, [selectedRegionId, useLive]);
+    return getHistoricalAnalogues(selectedRegionId, 24);
+  }, [selectedRegionId]);
 
-  const multi = useAsync(async () => (useLive ? getMultiModel() : Promise.resolve(demoMultiModelFor(variable))), [
-    variable,
-    useLive,
-  ]);
+  const multi = useAsync(async () => getMultiModel(), [variable]);
 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'name' | 'bust' | 'confidence'>('bust');
@@ -84,7 +72,6 @@ export default function RegionsPage() {
         eyebrow="Operations"
         title="Regional Intelligence"
         description="Pick a location and read everything Nirikshan knows about it: current risk, drivers, historical analogue and multi-model agreement."
-        source={isDemo ? 'demo' : 'live'}
         controls={<ForecastControls showThresholds />}
         actions={
           <Button variant="secondary" onClick={() => setRegions(map.data?.regions ?? [])}>
@@ -93,13 +80,7 @@ export default function RegionsPage() {
         }
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} notes={map.data?.notes} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" notes={map.data?.notes} onRetry={retry} />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Stat label="Catalogue regions" value={list.length} animate />
@@ -296,7 +277,6 @@ export default function RegionsPage() {
                       contributions={data.reasons}
                       modelReasons={data.plain_reasons}
                       stabilizers={data.stabilizers}
-                      source={data.source}
                     />
                   )}
                 </AsyncSection>
@@ -306,7 +286,6 @@ export default function RegionsPage() {
                     <HistoricalAnaloguePanel
                       history={data}
                       analogs={analysis.data?.historical_analogs}
-                      source={useLive ? 'live' : 'demo'}
                     />
                   )}
                 </AsyncSection>

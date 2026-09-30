@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
-import { Badge, Button } from './primitives';
+import { Button } from './primitives';
+import { useAppStore } from '../../store/useAppStore';
 
 /* ---------------------------------------------------------------- Skeletons */
 
@@ -15,6 +16,30 @@ export function SkeletonPanel({ lines = 3, height = 'h-4' }: { lines?: number; h
       {Array.from({ length: lines }).map((_, i) => (
         <Skeleton key={i} className={cn(height, i === lines - 1 ? 'w-2/3' : 'w-full')} />
       ))}
+    </div>
+  );
+}
+
+/** Whole-view fallback shown while a route chunk is loading. */
+export function PageSkeleton() {
+  return (
+    <div className="space-y-4" role="status" aria-live="polite" aria-label="Loading view">
+      <span className="sr-only">Loading view</span>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="panel space-y-3 p-5" aria-hidden="true">
+            <Skeleton className="h-3 w-1/2" />
+            <Skeleton className="h-7 w-2/3" />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <SkeletonPanel lines={6} />
+        </div>
+        <SkeletonPanel lines={6} />
+      </div>
     </div>
   );
 }
@@ -149,7 +174,7 @@ export function ErrorState({
       <div>
         <p className="text-sm font-semibold text-navy-900">{title}</p>
         <p className="mx-auto mt-1.5 max-w-lg text-sm text-slate-500">
-          {description ?? 'The Nirikshan backend did not respond. Check that the API is running, then retry.'}
+          {description ?? 'The analysis service did not respond. Retry, or check the system status view.'}
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
@@ -164,84 +189,63 @@ export function ErrorState({
   );
 }
 
-/* ------------------------------------------------------------ Source badges */
+/* ------------------------------------------------------------- Status banner */
 
-export function DataSourceBadge({ source, className }: { source: 'live' | 'demo' | 'unknown'; className?: string }) {
-  if (source === 'demo') {
-    return (
-      <Badge tone="demo" className={className} title="Values supplied by the offline demo dataset, not by a live model run">
-        <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
-        Demo data
-      </Badge>
-    );
-  }
-  if (source === 'live') {
-    return (
-      <Badge tone="live" className={className} title="Values returned by the Nirikshan backend">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-        Live API
-      </Badge>
-    );
-  }
-  return (
-    <Badge tone="neutral" className={className}>
-      Unknown source
-    </Badge>
-  );
-}
-
-export function BackendBanner({
-  mode,
-  onEnableDemo,
-  onRetry,
+/**
+ * Truthful service-status banner shown above operational views.
+ *  - offline : neutral "intelligence unavailable" notice with a retry action
+ *  - online  : data-completeness notices returned by the analysis service
+ * No origin badge is rendered; freshness is communicated with timestamps in
+ * the header.
+ */
+export function StatusBanner({
   notes,
+  onRetry,
+  className,
 }: {
-  mode: 'live' | 'demo' | 'auto';
-  onEnableDemo?: () => void;
-  onRetry?: () => void;
   notes?: string[];
+  onRetry?: () => void;
+  className?: string;
 }) {
-  if (mode === 'demo') {
+  const backendState = useAppStore((s) => s.backendState);
+
+  if (backendState === 'offline') {
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3.5 py-2.5 text-xs text-violet-800">
-        <Badge tone="demo">Demo data</Badge>
-        <span className="font-medium">
-          The backend is offline — this screen is rendered from the offline demo dataset and is not live model output.
-        </span>
-        {onRetry && (
-          <button className="ml-auto font-semibold underline underline-offset-2 hover:text-violet-900" onClick={onRetry}>
-            Reconnect
-          </button>
+      <div
+        role="status"
+        className={cn(
+          'flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-ice-200 bg-white px-3.5 py-2.5 text-xs text-slate-600 shadow-soft',
+          className,
         )}
-      </div>
-    );
-  }
-  if (mode === 'live' && notes && notes.length > 0) {
-    return (
-      <div className="flex flex-col gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800">
-        {notes.map((n) => (
-          <span key={n}>• {n}</span>
-        ))}
-      </div>
-    );
-  }
-  if (mode === 'live' && onEnableDemo) {
-    return (
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-ice-200 bg-white px-3.5 py-2.5 text-xs text-slate-600 shadow-soft">
-        <span className="font-medium">Backend offline — live values cannot be shown.</span>
-        <button
-          className="ml-auto rounded-md bg-navy-900 px-3 py-1.5 font-semibold text-white transition hover:bg-navy-800"
-          onClick={onEnableDemo}
-        >
-          Switch to demo data
-        </button>
+      >
+        <span className="flex items-center gap-2 font-semibold text-navy-900">
+          <span className="text-risk-critical" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+              <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+            </svg>
+          </span>
+          Forecast intelligence unavailable
+        </span>
+        <span>The analysis service could not be reached, so no values are shown for this view.</span>
         {onRetry && (
-          <button className="rounded-md border border-ice-200 px-3 py-1.5 font-semibold hover:bg-ice-50" onClick={onRetry}>
+          <button
+            className="ml-auto rounded-md bg-navy-900 px-3 py-1.5 font-semibold text-white transition hover:bg-navy-800"
+            onClick={onRetry}
+          >
             Retry
           </button>
         )}
       </div>
     );
   }
-  return null;
+
+  if (backendState !== 'online' || !notes || notes.length === 0) return null;
+
+  return (
+    <div className={cn('flex flex-col gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800', className)}>
+      {notes.map((n) => (
+        <span key={n}>• {n}</span>
+      ))}
+    </div>
+  );
 }

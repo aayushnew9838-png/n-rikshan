@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { PageHeader, AsyncSection } from '../components/layout/PageHeader';
 import { ForecastControls } from '../components/forecast/ForecastControls';
-import { BackendBanner, ChartSkeleton, SkeletonPanel, TableSkeleton } from '../components/ui/states';
+import { StatusBanner, ChartSkeleton, SkeletonPanel, TableSkeleton } from '../components/ui/states';
 import { Badge, Button, Stat, Panel, SectionTitle, InfoTip, Select, SegmentedControl } from '../components/ui/primitives';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useAsync } from '../hooks/useAsync';
 import { useAppStore } from '../store/useAppStore';
-import { DEMO_FORCED, demoAnalytics, getAnalytics } from '../services/api';
+import { getAnalytics } from '../services/api';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -39,17 +39,13 @@ const TOOLTIP = {
 type View = 'overview' | 'calibration' | 'regional';
 
 export default function AnalyticsPage() {
-  const { leadDay, isDemo, dayWise } = useForecastData();
-  const { enableDemo, retry } = useShell();
+  const { leadDay, dayWise } = useForecastData();
+  const { retry } = useShell();
   const { variable, setLeadDay } = useAppStore();
   const [view, setView] = useState<View>('overview');
   const [windowDays, setWindowDays] = useState(10);
 
-  const useLive = !isDemo && !DEMO_FORCED;
-  const analytics = useAsync(async () => (useLive ? getAnalytics(windowDays) : Promise.resolve(demoAnalytics())), [
-    windowDays,
-    useLive,
-  ]);
+  const analytics = useAsync(async () => getAnalytics(windowDays), [windowDays]);
 
   const leadSeries = useMemo(() => {
     const a = analytics.data;
@@ -79,7 +75,6 @@ export default function AnalyticsPage() {
         eyebrow="Analysis"
         title="Analytics"
         description="Aggregated performance, calibration and regional risk - computed by the backend, never re-stated as a hard-coded claim."
-        source={isDemo ? 'demo' : 'live'}
         controls={<ForecastControls showThresholds />}
         actions={
           <>
@@ -104,21 +99,15 @@ export default function AnalyticsPage() {
                 a.click();
                 URL.revokeObjectURL(url);
               }}
-              title="Download the currently loaded analytics bundle"
+              title="Download the currently loaded analytics"
             >
-              <IconDownload width={15} height={15} /> Export
+              <IconDownload width={15} height={15} /> Export analysis
             </Button>
           </>
         }
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} notes={analytics.data?.notes} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" notes={analytics.data?.notes} onRetry={retry} />
 
       <div className="mb-4 flex flex-wrap items-end gap-4">
         <Select
@@ -133,8 +122,7 @@ export default function AnalyticsPage() {
           ))}
         </Select>
         <div className="text-[11px] leading-relaxed text-slate-500">
-          Source: <span className="data-value font-semibold">{analytics.data?.source ?? '-'}</span> - variable{' '}
-          <span className="data-value font-semibold">{variable}</span> - active lead day{' '}
+          Variable <span className="data-value font-semibold">{variable}</span> - active lead day{' '}
           <span className="data-value font-semibold">{leadDay}</span>
         </div>
       </div>
@@ -142,8 +130,6 @@ export default function AnalyticsPage() {
       <AsyncSection
         state={analytics}
         skeleton={<ChartSkeleton height={300} />}
-        showUnavailableAction
-        onEnableDemo={enableDemo}
       >
         {(data) => (
           <>
@@ -480,11 +466,6 @@ export default function AnalyticsPage() {
                       <li className="flex gap-2">
                         <IconInfo width={14} height={14} className="mt-0.5 shrink-0 text-blue-500" />
                         Calibration and model-comparison tables come from the ML evaluation report.
-                      </li>
-                      <li className="flex gap-2">
-                        <IconInfo width={14} height={14} className="mt-0.5 shrink-0 text-amber-500" />
-                        In demo mode the same aggregates are rebuilt from the documented demo dataset and the real
-                        evaluation report - still not hand-written numbers.
                       </li>
                     </ul>
                   </Panel>

@@ -18,6 +18,7 @@ export function AtmosphereCanvas({ className, intensity = 1 }: { className?: str
     if (!ctx) return;
 
     let raf = 0;
+    let running = false;
     let width = 0;
     let height = 0;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -125,12 +126,34 @@ export function AtmosphereCanvas({ className, intensity = 1 }: { className?: str
       ctx.stroke();
       ctx.setLineDash([]);
 
-      if (!reduced) raf = requestAnimationFrame(draw);
+      if (!reduced && running) raf = requestAnimationFrame(draw);
     };
 
-    raf = requestAnimationFrame(draw);
-    return () => {
+    // only animate while the canvas is on screen — keeps idle CPU at zero
+    const start = () => {
+      if (running || reduced) return;
+      running = true;
+      raf = requestAnimationFrame(draw);
+    };
+    const stop = () => {
+      running = false;
       cancelAnimationFrame(raf);
+    };
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) start();
+        else stop();
+      },
+      { rootMargin: '160px' },
+    );
+    io.observe(canvas);
+
+    if (reduced) draw(0);
+
+    return () => {
+      stop();
+      io.disconnect();
       ro.disconnect();
     };
   }, [reduced, intensity]);

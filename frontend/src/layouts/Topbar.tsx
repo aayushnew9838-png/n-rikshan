@@ -1,13 +1,10 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { cn } from '../utils/cn';
 import { locationToCrumbs } from './Sidebar';
-import { Badge } from '../components/ui/primitives';
-import { DataSourceBadge } from '../components/ui/states';
 import { IconMenu, IconChevronLeft, IconClock } from '../components/ui/icons';
 import { useNow } from '../hooks/useAsync';
 import { useAppStore } from '../store/useAppStore';
-import { API_BASE } from '../services/api';
 
 export function Topbar({
   onToggleNav,
@@ -21,9 +18,10 @@ export function Topbar({
   const location = useLocation();
   const now = useNow(1000);
   const crumbs = locationToCrumbs(location.pathname);
-  const { mode, backendState, regions } = useAppStore();
-  const [initLabel, setInitLabel] = useState<string>('â€”');
+  const { backendState, regions } = useAppStore();
+  const [initLabel, setInitLabel] = useState<string>('—');
 
+  /* Forecast initialisation is the last synoptic cycle boundary (00/06/12/18Z). */
   useEffect(() => {
     const d = new Date();
     d.setUTCMinutes(0, 0, 0);
@@ -31,14 +29,13 @@ export function Topbar({
     setInitLabel(`${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}Z`);
   }, []);
 
-  const source: 'live' | 'demo' | 'unknown' =
-    mode === 'demo' || (mode === 'auto' && backendState === 'offline')
-      ? 'demo'
-      : backendState === 'online'
-        ? 'live'
-        : 'unknown';
-
   const utc = `${now.toISOString().slice(0, 10)} ${now.toISOString().slice(11, 19)}Z`;
+  const status =
+    backendState === 'online'
+      ? { label: 'Service online', className: 'text-emerald-700', dot: 'bg-emerald-500' }
+      : backendState === 'offline'
+        ? { label: 'Service offline', className: 'text-slate-500', dot: 'bg-slate-400' }
+        : { label: 'Connecting', className: 'text-slate-500', dot: 'bg-amber-400' };
 
   return (
     <header className="sticky top-0 z-40 flex h-[60px] shrink-0 items-center gap-3 border-b border-ice-200 bg-white/85 px-3 backdrop-blur-md sm:px-5">
@@ -81,20 +78,22 @@ export function Topbar({
 
       <div className="hidden flex-col items-end xl:flex">
         <span className="eyebrow !text-[9px]">Forecast init</span>
-        <span className="data-value text-[11px] font-semibold text-navy-800">{initLabel}</span>
+        <span className="data-value text-[11px] font-semibold text-navy-800" title="Initialisation of the active forecast cycle">
+          {initLabel}
+        </span>
       </div>
 
-      <div className="hidden items-center gap-1.5 sm:flex">
-        <Badge tone="blue" title={`API base: ${API_BASE}`}>
-          NWP Â· GFS ECMWF ICON GEM
-        </Badge>
+      <div
+        className="hidden items-center gap-1.5 rounded-lg border border-ice-200 bg-white px-2.5 py-1.5 shadow-soft sm:flex"
+        title={backendState === 'online' ? 'Connected to the analysis service' : 'Analysis service connection state'}
+      >
+        <span className={cn('h-1.5 w-1.5 rounded-full', status.dot)} aria-hidden="true" />
+        <span className={cn('text-[11px] font-semibold', status.className)}>{status.label}</span>
       </div>
-
-      <DataSourceBadge source={source} />
 
       <div className="hidden items-center gap-1.5 lg:flex" title="Region catalogue size">
         <span className="data-value text-[11px] font-semibold text-slate-500">
-          {regions.length ? `${regions.length} regions` : 'â€”'}
+          {regions.length ? `${regions.length} regions` : '—'}
         </span>
       </div>
     </header>

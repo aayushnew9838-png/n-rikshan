@@ -4,15 +4,15 @@ import { PageHeader, AsyncSection } from '../components/layout/PageHeader';
 import { ForecastControls } from '../components/forecast/ForecastControls';
 import { ConfidenceStrip } from '../components/forecast/ConfidenceStrip';
 import { ConfidenceMatrix, buildMatrix } from '../components/charts/ConfidenceMatrix';
-import { BackendBanner, ChartSkeleton, SkeletonPanel } from '../components/ui/states';
+import { StatusBanner, ChartSkeleton, SkeletonPanel } from '../components/ui/states';
 import { Stat, InfoTip, SectionTitle, Button } from '../components/ui/primitives';
-import { useForecastData, useShell, useIsDemo } from '../hooks/useForecastData';
+import { useForecastData, useShell } from '../hooks/useForecastData';
 import { useAppStore } from '../store/useAppStore';
 import type { ReliabilityCell } from '../types';
 
 export default function LeadTimePage() {
-  const { leadDay, isDemo, dayWise, overview } = useForecastData();
-  const { enableDemo, retry } = useShell();
+  const { leadDay, dayWise, overview } = useForecastData();
+  const { retry } = useShell();
   const { selectRegion, setLeadDay } = useAppStore();
   const navigate = useNavigate();
 
@@ -41,17 +41,10 @@ export default function LeadTimePage() {
         eyebrow="Operations"
         title="Day 1-10 Reliability"
         description="How forecast trust decays with lead time. Every cell is confidence = 100 x (1 - calibrated bust probability)."
-        source={isDemo ? 'demo' : 'live'}
         controls={<ForecastControls showThresholds />}
       />
 
-      <div className="mb-4">
-        {isDemo ? (
-          <BackendBanner mode="demo" onRetry={retry} />
-        ) : (
-          <BackendBanner mode="live" onEnableDemo={enableDemo} onRetry={retry} notes={dayWise.data ? [] : undefined} />
-        )}
-      </div>
+      <StatusBanner className="mb-4" onRetry={retry} />
 
       <AsyncSection state={overview} skeleton={<SkeletonPanel lines={4} />} className="mb-4">
         {(data) => (

@@ -1,7 +1,5 @@
 /** Central type definitions for the Nirikshan frontend. */
 
-export type DataSource = 'live' | 'demo';
-
 export type ConfidenceCategory =
   | 'HIGH_CONFIDENCE'
   | 'MODERATE_CONFIDENCE'
@@ -104,7 +102,6 @@ export interface RegionAnalysis {
   historical_analogs?: HistoricalAnalogs;
   model_version?: string;
   timestamp?: string;
-  source: DataSource;
 }
 
 export interface HistoricalCase {
@@ -142,7 +139,6 @@ export interface Alert {
   reason: string;
   created_at: string;
   status: 'open' | 'acknowledged';
-  source: DataSource;
 }
 
 export interface ModelInfo {
@@ -158,7 +154,6 @@ export interface ModelInfo {
   top_features?: { feature: string; importance: number }[];
   /** Raw model-card fields surfaced verbatim by the backend. */
   raw?: Record<string, unknown>;
-  source: DataSource;
 }
 
 export interface HealthStatus {
@@ -166,7 +161,6 @@ export interface HealthStatus {
   model_loaded: boolean;
   model_version?: string | null;
   prefix?: '/api/v1' | '';
-  source: DataSource;
 }
 
 export interface MultiModelAgreement {
@@ -174,7 +168,6 @@ export interface MultiModelAgreement {
   models: { name: string; value: number | null }[];
   spread: number | null;
   interpretation: string;
-  source: DataSource;
 }
 
 export interface CaseStudy {
@@ -199,7 +192,6 @@ export interface CaseStudy {
     top_shap_factors: { feature: string; shap_value: number; feature_value: number }[];
   };
   historical_analogs: HistoricalAnalogs;
-  source: DataSource;
 }
 
 export interface VerificationPoint {
@@ -218,7 +210,6 @@ export interface AnalyticsBundle {
   calibration?: CalibrationPoint[];
   variable_performance?: VariablePerformanceRow[];
   error_distribution?: { bin: string; count: number }[];
-  source: DataSource;
   notes: string[];
 }
 
@@ -271,12 +262,10 @@ export interface OverviewStats {
   highest_bust_probability: { region_id: string; region_name: string; bust_probability: number } | null;
   mean_confidence: number;
   lead_day: number;
-  source: DataSource;
 }
 
 export type MapLayer = 'confidence' | 'bust' | 'risk_heat' | 'disagreement' | 'error';
 
 export interface ApiResult<T> {
   data: T;
-  source: DataSource;
 }
