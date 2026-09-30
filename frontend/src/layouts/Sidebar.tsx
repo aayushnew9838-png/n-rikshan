@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { cn } from '../utils/cn';
 import {
   NirikshanMark,
@@ -72,9 +72,12 @@ export function Sidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavig
         collapsed ? 'w-[76px]' : 'w-64',
       )}
     >
-      <div
+      <Link
+        to="/"
+        title="Back to the Nirikshan landing page"
+        aria-label="Nirikshan home - back to the landing page"
         className={cn(
-          'flex h-[60px] shrink-0 items-center gap-2.5 border-b border-ice-200 px-4',
+          'flex h-[60px] shrink-0 items-center gap-2.5 border-b border-ice-200 px-4 transition-colors hover:bg-ice-50',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -89,7 +92,7 @@ export function Sidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavig
             </div>
           </div>
         )}
-      </div>
+      </Link>
 
       <div className="flex-1 overflow-y-auto px-2.5 py-4">
         <NavLink
