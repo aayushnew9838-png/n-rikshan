@@ -5,8 +5,8 @@ import type { ForecastRegion, MapLayer } from '../../types';
 import { confidenceColor, riskColor } from '../../utils/risk';
 import { cn } from '../../utils/cn';
 
-const BASE_TILES = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-const BASE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const BASE_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const BASE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const INDIA_CENTER: [number, number] = [22.8, 79.5];
 const INDIA_ZOOM = 5;
@@ -84,7 +84,7 @@ export function ConfidenceMap({
     });
     const tiles = L.tileLayer(BASE_TILES, {
       attribution: BASE_ATTRIBUTION,
-      subdomains: 'abcd',
+      subdomains: 'abc',
       maxZoom: 19,
       detectRetina: true,
     });
