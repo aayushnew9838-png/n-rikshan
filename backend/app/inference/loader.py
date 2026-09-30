@@ -63,6 +63,7 @@ def _create_stub_model():
     import numpy as np
 
     class StubModel:
+        _is_stub = True
 
         def predict_proba(self, X):
             n = len(X) if hasattr(X, '__len__') else 1

@@ -51,15 +51,56 @@ function statBiasOf(region: DemoRegion): number {
   return (region.regionalBaseRate - NATIONAL_POS_RATE) * 0.55;
 }
 
+const REGIONAL_BASE_BUST_RATES: Record<string, number> = {
+  // 1. High Risk / Very Low Confidence (RED dots, conf < 40%)
+  REG_LEH: 0.74,
+  REG_SRINAGAR: 0.70,
+  REG_SHIMLA: 0.68,
+  REG_DEHRADUN: 0.64,
+  REG_SHILLONG: 0.75,
+  REG_KOHIMA: 0.71,
+  REG_AIZAWL: 0.69,
+  REG_IMPHAL: 0.67,
+  REG_PORTBLAIR: 0.72,
+
+  // 2. Elevated Risk / Low Confidence (ORANGE dots, conf 40-59%)
+  REG_VISAKHAPATNAM: 0.52,
+  REG_BHUBANESWAR: 0.54,
+  REG_KOCHI: 0.50,
+  REG_TRIVANDRUM: 0.48,
+  REG_PUDUCHERRY: 0.47,
+  REG_MUMBAI: 0.53,
+  REG_KOLKATA: 0.49,
+  REG_AGARTALA: 0.51,
+  REG_GUWAHATI: 0.46,
+
+  // 3. Moderate Confidence (MEDIUM BLUE dots, conf 60-79%)
+  REG_CHENNAI: 0.35,
+  REG_PATNA: 0.36,
+  REG_RANCHI: 0.38,
+  REG_RAIPUR: 0.34,
+  REG_PUNE: 0.32,
+  REG_NAGPUR: 0.31,
+  REG_LUCKNOW: 0.33,
+  REG_BHOPAL: 0.30,
+  '1255364': 0.37,
+
+  // 4. High Confidence (LIGHT BLUE dots, conf >= 80%)
+  '1253405': 0.14,
+  '1257629': 0.16,
+  REG_JAIPUR: 0.12,
+  REG_AHMEDABAD: 0.15,
+  REG_INDORE: 0.16,
+  REG_HYDERABAD: 0.17,
+  REG_BENGALURU: 0.14,
+  REG_CHANDIGARH: 0.15,
+};
+
 /** Synthetic calibrated bust probability for a demo region × lead day. */
 export function demoBustProbability(region: DemoRegion, leadDay: number): number {
-  const r = hash01(region.region_id);
-  const tilt = tiltOf(region);
-  const base = clamp(0.05 + tilt * 0.5 + statBiasOf(region), 0.012, 0.3);
-  const amplitude = clamp(0.55 + (tilt + 0.17) * 1.65, 0.4, 1.15);
-  const shape = Math.pow(Math.max(0, leadDay - 1) / 9, 0.78);
-  const cycle = 0.03 * Math.sin(leadDay * 1.27 + r * 6.2831);
-  return clamp(base + amplitude * shape + cycle, 0.01, 0.97);
+  const base = REGIONAL_BASE_BUST_RATES[region.region_id] ?? 0.35;
+  const drift = (leadDay - 3) * 0.015;
+  return clamp(Math.round((base + drift) * 1000) / 1000, 0.02, 0.96);
 }
 
 export function demoCells(leadDay: number): ReliabilityCell[] {
