@@ -5,7 +5,12 @@ import type { Alert, MapLayer, RegionInfo, VariableKey } from '../types';
 export type BackendState = 'unknown' | 'probing' | 'online' | 'offline';
 
 interface AppState {
-  /* ---- service availability -------------------------------------------- */  backendState: BackendState;  setBackendState: (s: BackendState) => void;
+  /* ---- service availability -------------------------------------------- */
+  backendState: BackendState;
+  setBackendState: (s: BackendState) => void;
+  /** True while views are served from the bundled offline analysis snapshot. */
+  snapshotMode: boolean;
+  setSnapshotMode: (v: boolean) => void;
   /* ---- forecast selection ---------------------------------------------- */
   leadDay: number;
   variable: VariableKey;
@@ -56,6 +61,8 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       backendState: 'unknown',
       setBackendState: (backendState) => set({ backendState }),
+      snapshotMode: false,
+      setSnapshotMode: (snapshotMode) => set({ snapshotMode }),
 
       leadDay: 5,
       variable: 'temperature_2m',

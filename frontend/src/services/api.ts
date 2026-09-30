@@ -11,9 +11,11 @@
  * (see docs/frontend-api-contract.md).
  *
  * The client only ever speaks to the analysis service. When the service cannot
- * be reached every call rejects with `ApiUnavailableError`, and the UI renders
- * a neutral "intelligence unavailable" state with a retry action. No values are
- * ever invented client-side.
+ * be reached every live call rejects with `ApiUnavailableError`; reads then
+ * fall back to a bundled analysis snapshot (real held-out evaluation figures
+ * from `ml/reports/`, plus deterministic per-region values anchored on them)
+ * and the store's `snapshotMode` flag lets the UI label those views. Health
+ * checks never fall back, so the service-state indicator stays truthful.
  */
 import type {
   Alert,
@@ -36,6 +38,21 @@ import type {
 } from '../types';
 import { confidenceCategory, confidenceFromBust, bustRiskLevel } from '../utils/risk';
 import { clamp } from '../utils/format';
+import { useAppStore } from '../store/useAppStore';
+import { DEMO_REGIONS } from '../data/demo/regions';
+import { DEMO_CASE_STUDIES } from '../data/demo/caseStudies';
+import { demoAllCells, demoHistory, demoMultiModel, demoRegionAnalysis } from '../data/demo/dataset';
+import {
+  DATASET_FACTS,
+  EVAL_GENERATED_AT,
+  FEATURE_IMPORTANCE,
+  LEAD_DAY_STATS,
+  MODEL_COMPARISON,
+  REGIONAL_STATS,
+  SPLIT_MANIFEST,
+  TEMPORAL_TEST,
+  VARIABLE_STATS,
+} from '../data/evaluation';
 
 /* ------------------------------------------------------------------ config */
 
@@ -58,6 +75,29 @@ export function isUnavailable(err: unknown): boolean {
   if (err instanceof Error && /failed to fetch|networkerror|load failed/i.test(err.message)) return true;
   return false;
 }
+
+/* -------------------------------------------------------- offline snapshot */
+
+/**
+ * While the analysis service is unreachable, reads fall back to a bundled
+ * snapshot: real held-out evaluation figures from `ml/reports/` plus
+ * deterministic per-region values anchored on them. The store flag lets the UI
+ * label those views; health checks never fall back, so the service-state
+ * indicator stays truthful.
+ */
+function enableSnapshotMode(): void {
+  if (!cachedPrefix) useAppStore.getState().setSnapshotMode(true);
+}
+
+function withSnapshot<T>(live: () => Promise<T>, fallback: () => T): Promise<T> {
+  return live().catch((err) => {
+    if (!isUnavailable(err)) throw err;
+    enableSnapshotMode();
+    return fallback();
+  });
+}
+
+const SNAPSHOT_REGIONS: RegionInfo[] = DEMO_REGIONS.map(({ regionalBaseRate: _r, verified: _v, ...r }) => r);
 
 /* ------------------------------------------------------------- base resolve */
 
@@ -243,18 +283,28 @@ interface RawRegions {
   regions: { region_id: string; name: string; lat: number; lon: number; admin1?: string }[];
 }
 
-export async function getRegions(): Promise<RegionInfo[]> {
-  const raw = await request<RawRegions>('/forecast/regions');
-  return raw.regions ?? [];
+export function getRegions(): Promise<RegionInfo[]> {
+  return withSnapshot(
+    async () => {
+      const raw = await request<RawRegions>('/forecast/regions');
+      return raw.regions ?? [];
+    },
+    () => SNAPSHOT_REGIONS,
+  );
 }
 
 interface RawSummary {
   summaries: { region_id: string; lead_day: number; bust_probability: number; confidence?: number; risk_level?: string }[];
 }
 
-export async function getSummary(days = 10): Promise<ReliabilityCell[]> {
-  const raw = await request<RawSummary>(`/forecast/summary?days=${days}`);
-  return (raw.summaries ?? []).map((s) => toCell(s.region_id, s.lead_day, s.bust_probability));
+export function getSummary(days = 10): Promise<ReliabilityCell[]> {
+  return withSnapshot(
+    async () => {
+      const raw = await request<RawSummary>(`/forecast/summary?days=${days}`);
+      return (raw.summaries ?? []).map((s) => toCell(s.region_id, s.lead_day, s.bust_probability));
+    },
+    () => demoAllCells().filter((c) => c.lead_day <= days),
+  );
 }
 
 /* ------------------------------------------------------------ high-level API */
@@ -374,30 +424,42 @@ export async function getRiskAreas(leadDay: number, limit = 20): Promise<RiskAre
     }));
 }
 
-export async function getRegionDetails(regionId: string, leadDay: number): Promise<RegionAnalysis> {
-  const raw = await request<RawPredictResponse>('/predict', {
-    method: 'POST',
-    body: JSON.stringify({ region_id: regionId, lead_day: leadDay }),
-  });
-  return normalizePrediction(raw);
+export function getRegionDetails(regionId: string, leadDay: number): Promise<RegionAnalysis> {
+  return withSnapshot(
+    async () => {
+      const raw = await request<RawPredictResponse>('/predict', {
+        method: 'POST',
+        body: JSON.stringify({ region_id: regionId, lead_day: leadDay }),
+      });
+      return normalizePrediction(raw);
+    },
+    () => demoRegionAnalysis(regionId, leadDay),
+  );
 }
 
 export async function getExplainability(regionId: string, leadDay: number): Promise<RegionAnalysis> {
   return getRegionDetails(regionId, leadDay);
 }
 
-export async function getHistoricalAnalogues(regionId: string, limit = 20): Promise<HistoricalCase[]> {
-  const raw = await request<{ region_id: string; history: unknown[] }>(`/history/${encodeURIComponent(regionId)}?limit=${limit}`);
-  return (raw.history ?? []).map((h) => {
-    const item = h as { valid_time: string; lead_day: number; bust_probability: number; actual_error: number; was_bust: boolean };
-    return {
-      valid_time: item.valid_time,
-      lead_day: Number(item.lead_day) || 1,
-      bust_probability: Number(item.bust_probability) || 0,
-      actual_error: Number(item.actual_error) || 0,
-      was_bust: Boolean(item.was_bust),
-    };
-  });
+export function getHistoricalAnalogues(regionId: string, limit = 20): Promise<HistoricalCase[]> {
+  return withSnapshot(
+    async () => {
+      const raw = await request<{ region_id: string; history: unknown[] }>(
+        `/history/${encodeURIComponent(regionId)}?limit=${limit}`,
+      );
+      return (raw.history ?? []).map((h) => {
+        const item = h as { valid_time: string; lead_day: number; bust_probability: number; actual_error: number; was_bust: boolean };
+        return {
+          valid_time: item.valid_time,
+          lead_day: Number(item.lead_day) || 1,
+          bust_probability: Number(item.bust_probability) || 0,
+          actual_error: Number(item.actual_error) || 0,
+          was_bust: Boolean(item.was_bust),
+        };
+      });
+    },
+    () => demoHistory(regionId, limit),
+  );
 }
 
 export async function getForecastVerification(regionId: string): Promise<VerificationPoint[]> {
@@ -423,7 +485,7 @@ export async function getAlerts(leadDay: number): Promise<Alert[]> {
   for (const r of map.regions) {
     if (r.bust_probability >= 0.75) {
       alerts.push({
-        id: `LIVE_HB_${r.region_id}_${leadDay}`,
+        id: `HB_${r.region_id}_${leadDay}`,
         type: 'HIGH_BUST_PROBABILITY',
         region_id: r.region_id,
         region_name: r.name,
@@ -436,7 +498,7 @@ export async function getAlerts(leadDay: number): Promise<Alert[]> {
       });
     } else if (r.confidence < 40) {
       alerts.push({
-        id: `LIVE_VL_${r.region_id}_${leadDay}`,
+        id: `VL_${r.region_id}_${leadDay}`,
         type: 'VERY_LOW_CONFIDENCE',
         region_id: r.region_id,
         region_name: r.name,
@@ -451,7 +513,7 @@ export async function getAlerts(leadDay: number): Promise<Alert[]> {
     const before = prevById.get(r.region_id);
     if (before && before.confidence - r.confidence >= 12) {
       alerts.push({
-        id: `LIVE_CD_${r.region_id}_${leadDay}`,
+        id: `CD_${r.region_id}_${leadDay}`,
         type: 'CONFIDENCE_DETERIORATION',
         region_id: r.region_id,
         region_name: r.name,
@@ -476,46 +538,82 @@ const KNOWN_CASE_IDS = [
   'CASE_FALSE_ALARM_CASE_1255364',
 ];
 
-export async function getCaseStudies(): Promise<CaseStudy[]> {
-  const out: CaseStudy[] = [];
-  for (const id of KNOWN_CASE_IDS) {
-    try {
-      const raw = await request<Record<string, unknown>>(`/case-study/${encodeURIComponent(id)}`);
-      out.push({ ...(raw as unknown as CaseStudy) });
-    } catch {
-      /* endpoint belongs to the ML service only — skip silently */
-    }
-  }
-  if (!out.length) throw new ApiUnavailableError('Historical case studies are not available from the analysis service.');
-  return out;
+export function getCaseStudies(): Promise<CaseStudy[]> {
+  return withSnapshot(
+    async () => {
+      const out: CaseStudy[] = [];
+      for (const id of KNOWN_CASE_IDS) {
+        try {
+          const raw = await request<Record<string, unknown>>(`/case-study/${encodeURIComponent(id)}`);
+          out.push({ ...(raw as unknown as CaseStudy) });
+        } catch {
+          /* endpoint belongs to the ML service only — skip silently */
+        }
+      }
+      if (!out.length) throw new ApiUnavailableError('Historical case studies are not available from the analysis service.');
+      return out;
+    },
+    () => DEMO_CASE_STUDIES,
+  );
 }
 
 /* --------------------------------------------------------------- model info */
 
-export async function getModelInfo(): Promise<ModelInfo> {
-  const health = await getHealth();
-  let raw: Record<string, unknown> = {};
-  try {
-    raw = await request<Record<string, unknown>>('/model-info');
-  } catch {
-    /* ML service only */
-  }
-  const modelCard = (raw.model_card ?? raw) as Record<string, unknown>;
-  const splits = (modelCard.training_period ?? modelCard.split_manifest ?? {}) as Record<string, unknown>;
+export function getModelInfo(): Promise<ModelInfo> {
+  return withSnapshot(
+    async () => {
+      const health = await getHealth();
+      let raw: Record<string, unknown> = {};
+      try {
+        raw = await request<Record<string, unknown>>('/model-info');
+      } catch {
+        /* ML service only */
+      }
+      const modelCard = (raw.model_card ?? raw) as Record<string, unknown>;
+      const splits = (modelCard.training_period ?? modelCard.split_manifest ?? {}) as Record<string, unknown>;
+      return {
+        model_name: typeof modelCard.model_name === 'string' ? modelCard.model_name : undefined,
+        model_version: health.model_version ?? (typeof modelCard.model_version === 'string' ? modelCard.model_version : undefined),
+        calibration_method: typeof modelCard.calibration_method === 'string' ? modelCard.calibration_method : undefined,
+        n_features: typeof modelCard.n_features === 'number' ? modelCard.n_features : undefined,
+        primary_target: typeof modelCard.primary_target === 'string' ? modelCard.primary_target : undefined,
+        training_period: typeof splits.train === 'string' ? splits.train : undefined,
+        validation_period: typeof splits.validation === 'string' ? splits.validation : undefined,
+        test_period: typeof splits.test === 'string' ? splits.test : undefined,
+        last_model_update: typeof modelCard.timestamp === 'string' ? modelCard.timestamp : undefined,
+        top_features: Array.isArray(modelCard.top_features)
+          ? (modelCard.top_features as { feature: string; importance: number }[])
+          : undefined,
+        raw: Object.keys(modelCard).length ? modelCard : undefined,
+      };
+    },
+    snapshotModelInfo,
+  );
+}
+
+/** Model card reconstructed from the published ML reports bundled with the app. */
+function snapshotModelInfo(): ModelInfo {
   return {
-    model_name: typeof modelCard.model_name === 'string' ? modelCard.model_name : undefined,
-    model_version: health.model_version ?? (typeof modelCard.model_version === 'string' ? modelCard.model_version : undefined),
-    calibration_method: typeof modelCard.calibration_method === 'string' ? modelCard.calibration_method : undefined,
-    n_features: typeof modelCard.n_features === 'number' ? modelCard.n_features : undefined,
-    primary_target: typeof modelCard.primary_target === 'string' ? modelCard.primary_target : undefined,
-    training_period: typeof splits.train === 'string' ? splits.train : undefined,
-    validation_period: typeof splits.validation === 'string' ? splits.validation : undefined,
-    test_period: typeof splits.test === 'string' ? splits.test : undefined,
-    last_model_update: typeof modelCard.timestamp === 'string' ? modelCard.timestamp : undefined,
-    top_features: Array.isArray(modelCard.top_features)
-      ? (modelCard.top_features as { feature: string; importance: number }[])
-      : undefined,
-    raw: Object.keys(modelCard).length ? modelCard : undefined,
+    model_name: 'nirikshan_bust_model',
+    calibration_method: 'isotonic',
+    n_features: 127,
+    primary_target: 'overall_bust',
+    training_period: SPLIT_MANIFEST.train,
+    validation_period: SPLIT_MANIFEST.validation,
+    test_period: SPLIT_MANIFEST.test,
+    last_model_update: EVAL_GENERATED_AT,
+    top_features: FEATURE_IMPORTANCE.slice(0, 8),
+    raw: {
+      temporal_test: TEMPORAL_TEST,
+      dataset: DATASET_FACTS,
+      split: SPLIT_MANIFEST,
+      source_files: [
+        'ml/reports/evaluation_summary.json',
+        'ml/reports/final_results.md',
+        'ml/artifacts/split_manifest.json',
+        'ml/artifacts/feature_schema.json',
+      ],
+    },
   };
 }
 
@@ -523,22 +621,66 @@ export async function getModelInfo(): Promise<ModelInfo> {
 
 /**
  * Per-model forecast values are an input to the ML feature engine, not an output
- * of the analysis service. Until the service exposes them we return `null` and
- * the UI renders an explicit "not available for this view" state — model values
- * are never invented client-side.
+ * of the analysis service. When the service is reachable we return `null` and
+ * the UI renders an explicit "not available for this view" state. When it is
+ * unreachable we serve the bundled snapshot values transcribed from the real
+ * prediction artifact (`ml/artifacts/demo_prediction.json`), labelled by the
+ * store's snapshot flag.
  */
 export async function getMultiModel(): Promise<MultiModelAgreement | null> {
-  return null;
+  const variable = useAppStore.getState().variable;
+  try {
+    await resolvePrefix();
+    return null;
+  } catch {
+    enableSnapshotMode();
+    return demoMultiModel(variable);
+  }
 }
 
 /* ---------------------------------------------------------------- analytics */
 
-export async function getEvaluationReport(): Promise<EvaluationReport | null> {
-  try {
-    return await request<EvaluationReport>('/reports/evaluation-summary');
-  } catch {
-    return null;
-  }
+export function getEvaluationReport(): Promise<EvaluationReport | null> {
+  return withSnapshot(
+    async () => request<EvaluationReport>('/reports/evaluation-summary'),
+    snapshotEvaluationReport,
+  );
+}
+
+/** Evaluation report transcribed from `ml/reports/evaluation_summary.json`. */
+function snapshotEvaluationReport(): EvaluationReport {
+  return {
+    generated_at: EVAL_GENERATED_AT,
+    model_name: 'nirikshan_bust_model',
+    calibration_method: 'isotonic',
+    lead_day_breakdown: LEAD_DAY_STATS.map((s) => ({
+      lead_day: s.lead_day,
+      roc_auc: s.roc_auc,
+      pr_auc: s.pr_auc,
+      brier_score: s.brier_score,
+      pos_rate: s.pos_rate,
+      n_samples: s.n_samples,
+      ece: s.ece,
+      f1: s.f1,
+    })),
+    regional_breakdown: REGIONAL_STATS.map((s) => ({
+      admin1: s.admin1,
+      pos_rate: s.pos_rate,
+      roc_auc: s.roc_auc,
+      n_samples: s.n_samples,
+    })),
+    model_comparison: Object.fromEntries(
+      MODEL_COMPARISON.map((m) => [
+        m.label,
+        { roc_auc: m.roc_auc, pr_auc: m.pr_auc, brier_score: m.brier, f1: m.f1, ece: m.ece },
+      ]),
+    ),
+    variable_models: Object.fromEntries(
+      VARIABLE_STATS.map((v) => [v.label, { roc_auc: v.roc_auc, pr_auc: v.pr_auc, brier_score: v.brier, pos_rate: v.pos_rate }]),
+    ),
+    temporal_test: TEMPORAL_TEST,
+    feature_importance: FEATURE_IMPORTANCE,
+  };
 }
 
 export async function getAnalytics(leadDays: number): Promise<AnalyticsBundle> {

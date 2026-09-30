@@ -29,8 +29,8 @@ export interface LandingData {
 /**
  * Single shared data source for the landing experience.
  * Everything rendered from it is service-backed; when the analysis service is
- * unreachable the sections fall back to neutral unavailable states instead of
- * substituting invented values.
+ * unreachable the sections read the bundled analysis snapshot instead, which
+ * the app labels with its snapshot notice.
  */
 export function useLandingData(): LandingData {
   const dayWise = useAsync(async () => getDayWiseConfidence(), []);

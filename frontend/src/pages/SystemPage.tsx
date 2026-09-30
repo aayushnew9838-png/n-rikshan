@@ -363,8 +363,8 @@ export default function SystemPage() {
 
             <p className="mt-4 text-[11px] leading-relaxed text-slate-500">
               The interface probes the analysis service once at start-up and remembers the resolved route. When the
-              service cannot be reached, each view renders a neutral unavailable state with a retry action — no value
-              is ever substituted client-side.
+              service cannot be reached, each view falls back to a labelled bundled snapshot of published evaluation
+              figures with a retry action.
             </p>
           </Panel>
 

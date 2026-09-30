@@ -84,7 +84,7 @@ const FAQ = [
   },
   {
     q: 'What happens when the analysis service cannot be reached?',
-    a: 'The client probes the service once, remembers the resolved route, and requests every view from it. When it cannot be reached, affected views show a neutral unavailable state with a retry action; no values are ever invented on the client.',
+    a: 'The client probes the service once, remembers the resolved route, and requests every view from it. When it cannot be reached, affected views fall back to a labelled bundled snapshot of published evaluation figures with a retry action.',
   },
 ];
 

@@ -11,7 +11,7 @@ import { currentPrefix, getHealth, getRegions, resetProbe } from '../services/ap
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { backendState, setBackendState, setRegions } = useAppStore();
+  const { backendState, setBackendState, setRegions, setSnapshotMode } = useAppStore();
   const [navOpen, setNavOpen] = useState(false);
   const collapsed = useAppStore((s) => s.navCollapsed);
   const setCollapsed = useAppStore((s) => s.setNavCollapsed);
@@ -22,7 +22,10 @@ export function AppShell() {
     setBackendState('probing');
     getHealth()
       .then(() => {
-        if (!cancelled) setBackendState('online');
+        if (!cancelled) {
+          setBackendState('online');
+          setSnapshotMode(false);
+        }
       })
       .catch(() => {
         if (!cancelled) setBackendState('offline');
@@ -30,7 +33,7 @@ export function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [setBackendState, location.pathname]);
+  }, [setBackendState, setSnapshotMode, location.pathname]);
 
   /* Region catalogue for drawers / watchlists --------------------------- */
   useEffect(() => {
@@ -71,7 +74,10 @@ export function AppShell() {
     resetProbe();
     setBackendState('probing');
     getHealth()
-      .then(() => setBackendState('online'))
+      .then(() => {
+        setBackendState('online');
+        setSnapshotMode(false);
+      })
       .catch(() => setBackendState('offline'));
   };
 

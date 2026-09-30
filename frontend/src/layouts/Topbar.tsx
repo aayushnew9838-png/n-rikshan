@@ -18,7 +18,7 @@ export function Topbar({
   const location = useLocation();
   const now = useNow(1000);
   const crumbs = locationToCrumbs(location.pathname);
-  const { backendState, regions } = useAppStore();
+  const { backendState, regions, snapshotMode } = useAppStore();
   const [initLabel, setInitLabel] = useState<string>('—');
 
   /* Forecast initialisation is the last synoptic cycle boundary (00/06/12/18Z). */
@@ -34,7 +34,9 @@ export function Topbar({
     backendState === 'online'
       ? { label: 'Service online', className: 'text-emerald-700', dot: 'bg-emerald-500' }
       : backendState === 'offline'
-        ? { label: 'Service offline', className: 'text-slate-500', dot: 'bg-slate-400' }
+        ? snapshotMode
+          ? { label: 'Snapshot mode', className: 'text-amber-700', dot: 'bg-amber-500' }
+          : { label: 'Service offline', className: 'text-slate-500', dot: 'bg-slate-400' }
         : { label: 'Connecting', className: 'text-slate-500', dot: 'bg-amber-400' };
 
   return (
@@ -85,7 +87,13 @@ export function Topbar({
 
       <div
         className="hidden items-center gap-1.5 rounded-lg border border-ice-200 bg-white px-2.5 py-1.5 shadow-soft sm:flex"
-        title={backendState === 'online' ? 'Connected to the analysis service' : 'Analysis service connection state'}
+        title={
+          backendState === 'online'
+            ? 'Connected to the analysis service'
+            : snapshotMode
+              ? 'Analysis service unreachable - bundled snapshot in use'
+              : 'Analysis service connection state'
+        }
       >
         <span className={cn('h-1.5 w-1.5 rounded-full', status.dot)} aria-hidden="true" />
         <span className={cn('text-[11px] font-semibold', status.className)}>{status.label}</span>

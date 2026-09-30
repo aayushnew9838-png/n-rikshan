@@ -193,8 +193,9 @@ export function ErrorState({
 
 /**
  * Truthful service-status banner shown above operational views.
- *  - offline : neutral "intelligence unavailable" notice with a retry action
- *  - online  : data-completeness notices returned by the analysis service
+ *  - offline + snapshot : amber notice stating the bundled snapshot is shown
+ *  - offline            : neutral "intelligence unavailable" notice with retry
+ *  - online             : data-completeness notices returned by the service
  * No origin badge is rendered; freshness is communicated with timestamps in
  * the header.
  */
@@ -208,6 +209,37 @@ export function StatusBanner({
   className?: string;
 }) {
   const backendState = useAppStore((s) => s.backendState);
+  const snapshotMode = useAppStore((s) => s.snapshotMode);
+
+  if (backendState === 'offline' && snapshotMode) {
+    return (
+      <div
+        role="status"
+        className={cn(
+          'flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800 shadow-soft',
+          className,
+        )}
+      >
+        <span className="flex items-center gap-2 font-semibold">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+            <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+          </svg>
+          Analysis service unreachable — bundled snapshot shown
+        </span>
+        <span>
+          Evaluation figures below are real held-out results; forecast values are a bundled snapshot, not live model output.
+        </span>
+        {onRetry && (
+          <button
+            className="ml-auto rounded-md bg-navy-900 px-3 py-1.5 font-semibold text-white transition hover:bg-navy-800"
+            onClick={onRetry}
+          >
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
 
   if (backendState === 'offline') {
     return (

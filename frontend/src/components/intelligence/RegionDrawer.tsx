@@ -25,6 +25,7 @@ export function RegionDrawer() {
     watchlist,
     toggleWatchlist,
     acknowledgeAlert,
+    snapshotMode,
   } = useAppStore();
 
   const open = Boolean(selectedRegionId);
@@ -156,6 +157,11 @@ export function RegionDrawer() {
                     <Badge tone={analysis.data.bust_probability >= 0.5 ? 'high' : 'low'}>
                       Risk {riskLabel(analysis.data.bust_probability)}
                     </Badge>
+                    {snapshotMode && (
+                      <Badge tone="moderate" title="The analysis service is unreachable - values come from the bundled snapshot">
+                        Snapshot
+                      </Badge>
+                    )}
                   </div>
                   <p className="mt-2 text-[11px] leading-snug text-slate-500">
                     {analysis.data.confidence >= 80

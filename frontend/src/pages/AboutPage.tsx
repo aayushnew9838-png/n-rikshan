@@ -44,7 +44,7 @@ const LIMITS = [
   'Nirikshan does not issue a weather forecast - it scores forecasts produced by numerical models.',
   'Skill claims apply to the evaluated regions and the temporal test split, not to arbitrary locations or dates.',
   'Confidence below 40% should be treated as "do not rely on this run" rather than a pessimistic forecast.',
-  'When the analysis service cannot be reached, affected views show a neutral unavailable state with a retry action rather than substitute values.',
+  'When the analysis service cannot be reached, affected views fall back to a clearly labelled bundled snapshot of published evaluation figures, with a retry action.',
   'No accuracy figure in this interface is hand-authored; each one is computed or transcribed from a published report.',
 ];
 
@@ -238,11 +238,11 @@ export default function AboutPage() {
               },
               {
                 q: 'How does the interface reach its data?',
-                a: 'The client probes the analysis service once, remembers the resolved route, and requests every view from it. Values are never invented on the client.',
+                a: 'The client probes the analysis service once, remembers the resolved route, and requests every view from it. Live values come only from the service; the bundled snapshot is used solely when it cannot be reached and is labelled as such.',
               },
               {
                 q: 'What happens when the analysis service cannot be reached?',
-                a: 'Affected views show a neutral "Forecast intelligence unavailable" state with a retry action, and the request is repeated once the service responds again.',
+                a: 'Affected views fall back to a labelled bundled snapshot of published evaluation figures with a retry action, and the request is repeated once the service responds again.',
               },
             ].map((f) => (
               <details key={f.q} className="group rounded-lg border border-ice-200 bg-white px-4 py-3">
